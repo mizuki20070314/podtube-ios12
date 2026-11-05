@@ -659,6 +659,19 @@ enum Parse {
         return info
     }
 
+    /// The channel that owns a video, from the `next` response (id, name, icon) — nothing else is read.
+    static func videoOwner(_ root: JSON) -> ChannelItem? {
+        guard let owner = root.findFirst("videoOwnerRenderer") else { return nil }
+        var cid = owner["navigationEndpoint"]["browseEndpoint"]["browseId"].stringValue
+        if cid.isEmpty { cid = owner["subscribeButton"]["subscribeButtonRenderer"]["channelId"].stringValue }
+        if cid.isEmpty { return nil }
+        var ch = ChannelItem(id: cid)
+        ch.name = owner["title"].textValue
+        ch.avatar = thumb(owner["thumbnail"], minWidth: 88)
+        ch.handle = owner["navigationEndpoint"]["browseEndpoint"]["canonicalBaseUrl"].stringValue
+        return ch
+    }
+
     // MARK: - Player
 
     static func playback(_ root: JSON, videoId: String) throws -> PlaybackInfo {

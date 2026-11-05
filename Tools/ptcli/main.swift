@@ -210,6 +210,15 @@ case "play":
     case .failure(let e): fail(e)
     }
 
+case "owner":
+    // owner <videoId>: channel id / name / icon of a video (what the feed rows without an icon ask for)
+    let id = args.count > 1 ? args[1] : "dQw4w9WgXcQ"
+    switch wait({ tub.videoOwner(videoId: id, $0) }) {
+    case .success(let c):
+        if let c = c { print("owner: \(c.name) \(c.id) \(c.handle) avatar=\(c.avatar.isEmpty ? "-" : String(c.avatar.prefix(70)))") } else { print("no owner found") }
+    case .failure(let e): fail(e)
+    }
+
 case "chapters":
     let id = args.count > 1 ? args[1] : "aircAruvnKk"
     if case .success(let w) = wait({ tub.watch(videoId: id, $0) }) {

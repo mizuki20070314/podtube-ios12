@@ -157,13 +157,19 @@ final class VideoCell: UITableViewCell {
         return parts.joined(separator: " · ")
     }
 
-    func configure(_ v: VideoItem) {
+    /// `reserveAvatar`: keep the icon column (a grey disc until the icon is known) so the row does not change its
+    /// layout when the icon arrives later (Home / Subscriptions, where the account feed has no icons).
+    func configure(_ v: VideoItem, reserveAvatar: Bool = false) {
         titleLabel.text = v.title
         metaLabel.text = VideoCell.metaText(v)
         thumb.setRemote(v.thumbnail.isEmpty ? v.thumbnailURL?.absoluteString : v.thumbnail, maxPixel: 800)
-        showsAvatar = !v.channelAvatar.isEmpty
+        showsAvatar = !v.channelAvatar.isEmpty || reserveAvatar
         avatar.isHidden = !showsAvatar
-        if showsAvatar { avatar.setRemote(v.channelAvatar, maxPixel: 96, fade: false) }
+        if !v.channelAvatar.isEmpty {
+            avatar.setRemote(v.channelAvatar, maxPixel: 96, fade: false)
+        } else {
+            avatar.image = nil
+        }
 
         if v.isLive {
             durationLabel.text = L10n.t("video.live")
@@ -192,8 +198,14 @@ final class VideoCell: UITableViewCell {
         return (x, width - x - 44)
     }
 
-    static func height(for v: VideoItem, width: CGFloat) -> CGFloat {
-        let m = textMetrics(width: width, hasAvatar: !v.channelAvatar.isEmpty)
+    /// An icon that was not known when the row was configured (see `ChannelDirectory`).
+    func setAvatar(_ url: String) {
+        if url.isEmpty || !showsAvatar { return }
+        avatar.setRemote(url, maxPixel: 96, fade: false)
+    }
+
+    static func height(for v: VideoItem, width: CGFloat, reserveAvatar: Bool = false) -> CGFloat {
+        let m = textMetrics(width: width, hasAvatar: !v.channelAvatar.isEmpty || reserveAvatar)
         let th = TextMetrics.height(v.title, font: Theme.title, width: m.w, maxLines: 2)
         return thumbHeight(width) + 10 + th + 3 + 16 + 14
     }

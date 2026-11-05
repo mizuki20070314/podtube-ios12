@@ -90,6 +90,7 @@ final class ChannelStripView: UIView {
 /// Subscriptions tab. Signed out, the subscriptions are stored on the device and the feed is built from each
 /// channel's Videos tab; signed in, the feed and the channel strip come from the account.
 final class SubscriptionsViewController: FeedViewController, HidesNavigationBar, ScrollsToTop {
+    override var showsChannelAvatars: Bool { return true }
     private let appBar = AppBarView()
     private let strip = ChannelStripView()
     private var shownIds: [String] = []

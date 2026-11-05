@@ -65,8 +65,8 @@ shot 23_chapters 18 -pt-theme dark -route "watch:aircAruvnKk;wait:8;w:chapters"
 # Google sign-in. The signed-in screens run on canned data (-pt-demo-account), never on a real account.
 shot 40_signin 6 -pt-theme dark -route "signin"
 shot 41_signin_light 6 -pt-theme light -route "signin"
-shot 42_home_account 12 -pt-theme dark -pt-demo-account
-shot 43_subs_account 10 -pt-theme dark -pt-demo-account -route "tab:2"
+shot 42_home_account 20 -pt-theme dark -pt-demo-account
+shot 43_subs_account 18 -pt-theme dark -pt-demo-account -route "tab:2"
 shot 44_library_account 10 -pt-theme dark -pt-demo-account -route "tab:3"
 shot 46_settings_account 6 -pt-theme dark -pt-demo-account -route "settings"
 shot 47_watchlater_account 10 -pt-theme dark -pt-demo-account -route "tab:3;acctlist:watchLater"
@@ -75,7 +75,8 @@ shot 49_account_playlist 10 -pt-theme dark -pt-demo-account -route "accountplayl
 shot 50_save_sheet 8 -pt-theme dark -pt-demo-account -route "savesheet"
 shot 51_library_account_320 10 -pt-theme dark -pt-demo-account -pt-size 320x568 -route "tab:3"
 shot 52_signin_320 6 -pt-theme dark -pt-size 320x568 -route "signin"
-shot 53_home_account_light 12 -pt-theme light -pt-demo-account
+shot 53_home_account_light 20 -pt-theme light -pt-demo-account
+shot 54_home_account_320 20 -pt-theme dark -pt-demo-account -pt-size 320x568
 fi
 
 if [ "$SET" = "core" ]; then
@@ -93,7 +94,8 @@ shot 80_library 6 -pt-theme dark -route "tab:3"
 shot 81_settings 6 -pt-theme dark -route "settings"
 shot 82_sheet 6 -pt-theme dark -route "sheet"
 shot 83_signin 6 -pt-theme dark -route "signin"
-shot 84_home_account 12 -pt-theme dark -pt-demo-account
+shot 84_home_account 20 -pt-theme dark -pt-demo-account
+shot 86_subs_account 18 -pt-theme dark -pt-demo-account -route "tab:2"
 shot 85_library_account 10 -pt-theme dark -pt-demo-account -route "tab:3"
 fi
 

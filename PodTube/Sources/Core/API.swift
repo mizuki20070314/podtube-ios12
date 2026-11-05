@@ -62,6 +62,14 @@ extension InnerTube {
         }
     }
 
+    /// Who owns a video (channel id, name, icon). The signed-in account's feeds name the channel but give neither
+    /// its id nor its icon, so rows ask this (one ~90 KB request per channel, remembered by `ChannelDirectory`).
+    func videoOwner(videoId: String, _ done: @escaping Done<ChannelItem?>) {
+        post("next", body: ["videoId": videoId]) { r in
+            done(r.map { Parse.videoOwner($0) })
+        }
+    }
+
     func comments(token: String, _ done: @escaping Done<CommentPage>) {
         post("next", body: ["continuation": token]) { r in
             done(r.map { Parse.comments($0) })

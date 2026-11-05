@@ -2,6 +2,7 @@ import UIKit
 
 /// Home tab: app bar, topic chips and the recommendation feed.
 final class HomeViewController: FeedViewController, HidesNavigationBar {
+    override var showsChannelAvatars: Bool { return true }
     private let appBar = AppBarView()
     private let chipBar = ChipBar()
 

@@ -25,6 +25,9 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     func emptyAction() {}
     private var stateIsError = false
     var showsRefreshControl: Bool { return true }
+    /// Home / Subscriptions: every video row shows its channel icon (looked up when the feed does not carry it).
+    var showsChannelAvatars: Bool { return false }
+    private var avatarRefreshQueued = false
     /// Area (inside `view`) that the list occupies; subclasses reserve space for their own bars.
     var listFrame: CGRect { return view.bounds }
     /// Area used for the loading / empty / error state (defaults to the list area).
@@ -67,6 +70,10 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         view.addSubview(tableView)
         view.addSubview(stateView)
         stateView.isHidden = true
+        if showsChannelAvatars {
+            NotificationCenter.default.addObserver(self, selector: #selector(channelDirectoryChanged),
+                                                   name: .channelDirectoryChanged, object: nil)
+        }
         if #available(iOS 11.0, *) { tableView.contentInsetAdjustmentBehavior = .never }
         if showsRefreshControl {
             refresher.addTarget(self, action: #selector(pulled), for: .valueChanged)
@@ -113,6 +120,26 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     }
 
     @objc func storeChanged() {}
+
+    @objc private func channelDirectoryChanged() {
+        if avatarRefreshQueued { return }
+        avatarRefreshQueued = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.avatarRefreshQueued = false
+            for ip in self.tableView.indexPathsForVisibleRows ?? [] where ip.row < self.items.count {
+                if case .video(let v) = self.items[ip.row], let cell = self.tableView.cellForRow(at: ip) as? VideoCell {
+                    cell.setAvatar(ChannelDirectory.shared.filled(v).channelAvatar)
+                }
+            }
+        }
+    }
+
+    private func openChannel(of v: VideoItem) {
+        ChannelDirectory.shared.owner(of: v) { ch in
+            if let c = ch { Router.shared.openChannel(id: c.id, name: c.name) }
+        }
+    }
 
     @objc private func pulled() { reload() }
 
@@ -263,7 +290,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         let w = tableView.bounds.width
         if indexPath.row >= items.count { return 56 }
         switch items[indexPath.row] {
-        case .video(let v): return VideoCell.height(for: v, width: w)
+        case .video(let v): return VideoCell.height(for: v, width: w, reserveAvatar: showsChannelAvatars)
         case .channel: return ChannelCell.rowHeight
         case .playlist: return PlaylistCell.height(width: w)
         case .shorts: return ShortsShelfCell.height(width: w)
@@ -279,14 +306,16 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             return cell
         }
         switch items[indexPath.row] {
-        case .video(let v):
+        case .video(let item):
             let cell = tableView.dequeueReusableCell(withIdentifier: VideoCell.reuseId, for: indexPath) as! VideoCell
-            cell.configure(v)
+            let v = showsChannelAvatars ? ChannelDirectory.shared.filled(item) : item
+            if showsChannelAvatars && v.channelAvatar.isEmpty { ChannelDirectory.shared.resolve(v) }
+            cell.configure(v, reserveAvatar: showsChannelAvatars)
             cell.onMore = { [weak self] in
                 guard let self = self else { return }
                 Router.shared.showVideoMenu(v, extra: self.extraActions(for: v))
             }
-            cell.onAvatar = { Router.shared.openChannel(id: v.channelId, name: v.channelName) }
+            cell.onAvatar = { [weak self] in self?.openChannel(of: v) }
             return cell
         case .channel(let c):
             let cell = tableView.dequeueReusableCell(withIdentifier: ChannelCell.reuseId, for: indexPath) as! ChannelCell
