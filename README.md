@@ -4,6 +4,10 @@ iOS 12 の iPod touch（第6世代 / 第7世代）で動く、非公式の YouTu
 Android 版 YouTube の UI と機能にできるだけ寄せて、UIKit だけで作っています
 （SwiftUI・async/await・SF Symbols は iOS 13 以降なので使っていません）。
 
+![PodTube の画面](docs/screens.jpg)
+
+（GitHub Actions のシミュレータで自動撮影した画面。ホーム / 再生 / 操作パネル / コメント / ショート / マイページ）
+
 > 非公式アプリです。YouTube / Google とは無関係です。内部 API を使うため、YouTube 側の変更で突然動かなくなることがあります。
 
 ## 主な機能
