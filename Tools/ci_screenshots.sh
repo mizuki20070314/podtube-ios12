@@ -49,6 +49,7 @@ shot 19_description 16 -pt-theme dark -route "watch:$VID;wait:7;w:expand"
 shot 20_player_settings 14 -pt-theme dark -route "watch:$VID;wait:7;w:settings"
 shot 21_search_light 14 -pt-theme light -route "search:ホロライブ"
 shot 22_shorts_light 22 -pt-theme light -route "tab:1"
+shot 23_chapters 18 -pt-theme dark -route "watch:aircAruvnKk;wait:8;w:chapters"
 
 xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
 ls -la "$OUT"

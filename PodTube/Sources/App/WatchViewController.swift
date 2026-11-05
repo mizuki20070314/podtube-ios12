@@ -99,6 +99,7 @@ final class WatchContentViewController: FeedViewController {
         if let a = w.autoplay { next.append(a) }
         next.append(contentsOf: w.related.videos)
         PlayerManager.shared.upNext = next
+        PlayerManager.shared.chapters = Chapters.parse(w.description)
         if !w.queue.isEmpty {
             PlayerManager.shared.adoptQueue(w.queue, currentId: w.videoId, playlistId: playlistId)
         }
@@ -522,6 +523,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         case "quality": showQuality()
         case "speed": showSpeed()
         case "seek60": PlayerManager.shared.seek(to: 60)
+        case "chapters": showChapters()
         default: break
         }
     }
@@ -544,7 +546,25 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
             SheetAction(title: L10n.t("player.sleep"), icon: "timer",
                         subtitle: pm.sleepEndsAt != nil || pm.sleepAtEnd ? "●" : L10n.t("player.sleepOff")) { [weak self] in self?.showSleep() }
         ]
-        SheetView.show(title: L10n.t("player.settings"), actions: acts)
+        var all = acts
+        if pm.chapters.count >= 2 {
+            all.insert(SheetAction(title: L10n.t("player.chapters"), icon: "format_list_bulleted",
+                                   subtitle: Chapters.current(pm.chapters, at: pm.currentTime)?.title) { [weak self] in
+                self?.showChapters()
+            }, at: 0)
+        }
+        SheetView.show(title: L10n.t("player.settings"), actions: all)
+    }
+
+    private func showChapters() {
+        let pm = PlayerManager.shared
+        let now = Chapters.current(pm.chapters, at: pm.currentTime)?.start
+        let acts = pm.chapters.map { c in
+            SheetAction(title: c.title, subtitle: Format.duration(c.start), checked: c.start == now) {
+                pm.seek(to: c.start)
+            }
+        }
+        SheetView.show(title: L10n.t("player.chapters"), actions: acts)
     }
 
     private func showQuality() {

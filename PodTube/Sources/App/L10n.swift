@@ -88,6 +88,7 @@ enum L10n {
         "video.removedFrom": ("「%@」から削除しました", "Removed from \"%@\""),
 
         // player
+        "player.chapters": ("チャプター", "Chapters"),
         "player.quality": ("画質", "Quality"),
         "player.speed": ("再生速度", "Playback speed"),
         "player.captions": ("字幕", "Captions"),
@@ -157,6 +158,9 @@ enum L10n {
         "subs.empty": ("登録チャンネルがありません", "No subscriptions yet"),
         "subs.emptyHint": ("チャンネルを登録すると、新着動画がここに表示されます", "Subscribe to channels to see their latest videos here"),
         "subs.manage": ("チャンネルを管理", "Manage channels"),
+        "subs.import": ("インポート", "Import"),
+        "subs.imported": ("%@ 件のチャンネルを追加しました", "Added %@ channels"),
+        "subs.importFailed": ("ファイルからチャンネルを読み取れませんでした", "No channels found in that file"),
         "subs.all": ("すべて", "All"),
 
         "downloads.started": ("ダウンロードを開始しました", "Download started"),

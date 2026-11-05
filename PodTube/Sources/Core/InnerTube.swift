@@ -17,7 +17,11 @@ struct ClientProfile {
 }
 
 enum Clients {
-    static let visionOS = ClientProfile(
+    static var visionOS: ClientProfile { return visionOSBase.overridden("visionos") }
+    static var androidVR: ClientProfile { return androidVRBase.overridden("android_vr") }
+    static var ios: ClientProfile { return iosBase.overridden("ios") }
+
+    private static let visionOSBase = ClientProfile(
         name: "VISIONOS",
         version: "1.02",
         numericId: 101,
@@ -29,7 +33,7 @@ enum Clients {
             "osVersion": "26.5.23O471"
         ])
 
-    static let androidVR = ClientProfile(
+    private static let androidVRBase = ClientProfile(
         name: "ANDROID_VR",
         version: "1.65.10",
         numericId: 28,
@@ -42,7 +46,7 @@ enum Clients {
             "osVersion": "12L"
         ])
 
-    static let ios = ClientProfile(
+    private static let iosBase = ClientProfile(
         name: "IOS",
         version: "21.26.4",
         numericId: 5,

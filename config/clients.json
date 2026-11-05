@@ -1,0 +1,12 @@
+{
+  "visionos": {
+    "clientVersion": "1.02",
+    "osVersion": "26.5.23O471"
+  },
+  "ios": {
+    "clientVersion": "21.26.4"
+  },
+  "android_vr": {
+    "clientVersion": "1.65.10"
+  }
+}

@@ -8,6 +8,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         DebugRoutes.applyEarlyArguments()
         Settings.applyToClient()
+        ClientOverrides.refresh()
         _ = PlayerManager.shared
         _ = DownloadManager.shared
 

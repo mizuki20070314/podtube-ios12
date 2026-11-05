@@ -111,6 +111,8 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
     override var emptyTitle: String { return L10n.t("subs.empty") }
     override var emptyIcon: String { return "subscriptions" }
     override var emptyDetail: String? { return L10n.t("subs.emptyHint") }
+    override var emptyButton: String? { return L10n.t("subs.import") }
+    override func emptyAction() { Router.shared.push(ChannelsManagerViewController()) }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -209,7 +211,12 @@ final class ChannelsManagerViewController: FeedViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = L10n.t("subs.manage")
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: L10n.t("subs.import"), style: .plain, target: self, action: #selector(importTapped))
         rebuild()
+    }
+
+    @objc private func importTapped() {
+        SubscriptionImportCoordinator.shared.present(from: self)
     }
 
     private func rebuild() {
@@ -218,5 +225,7 @@ final class ChannelsManagerViewController: FeedViewController {
         setPage(page)
     }
 
-    override func storeChanged() {}
+    override func storeChanged() {
+        if isViewLoaded { rebuild() }
+    }
 }

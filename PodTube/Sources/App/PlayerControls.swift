@@ -142,6 +142,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     private let subtitleLabel = PaddedLabel()
     private let skipIndicator = PaddedLabel()
     private let titleLabel = UILabel()
+    private let chapterLabel = UILabel()
 
     private var timer: Timer?
     private var hideTimer: Timer?
@@ -169,6 +170,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
 
         timeLabel.font = Theme.font(12, .medium)
         timeLabel.textColor = .white
+        chapterLabel.font = Theme.font(12)
+        chapterLabel.textColor = UIColor(white: 1, alpha: 0.8)
         titleLabel.font = Theme.font(15, .medium)
         titleLabel.textColor = .white
         titleLabel.isHidden = true
@@ -210,7 +213,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         skipIndicator.alpha = 0
 
         addSubviews([shade, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, captionButton, settingsButton,
-                     prevButton, playButton, nextButton, timeLabel, seekBar, fullscreenButton,
+                     prevButton, playButton, nextButton, timeLabel, chapterLabel, seekBar, fullscreenButton,
                      spinner, errorLabel, retryButton, skipIndicator])
 
         collapseButton.addTarget(self, action: #selector(collapseTapped), for: .touchUpInside)
@@ -331,7 +334,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         let changes = {
             self.shade.alpha = alpha
             for v in [self.collapseButton, self.captionButton, self.settingsButton, self.routePicker, self.prevButton,
-                      self.nextButton, self.timeLabel, self.fullscreenButton, self.titleLabel] as [UIView] {
+                      self.nextButton, self.timeLabel, self.chapterLabel, self.fullscreenButton, self.titleLabel] as [UIView] {
                 v.alpha = alpha
             }
             self.seekBar.alpha = alpha
@@ -416,6 +419,11 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
             }
             thinProgress.frame = CGRect(x: 0, y: bounds.height - 2, width: bounds.width * v, height: 2)
         }
+        if let ch = Chapters.current(pm.chapters, at: t), !live {
+            chapterLabel.text = "· " + ch.title
+        } else {
+            chapterLabel.text = nil
+        }
         // captions
         if SubtitleController.shared.isEnabled, let text = SubtitleController.shared.text(at: t) {
             if subtitleLabel.text != text {
@@ -466,7 +474,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         prevButton.frame = CGRect(x: cx - 36 - 24 - 54, y: cy - 27, width: 54, height: 54)
         nextButton.frame = CGRect(x: cx + 36 + 24, y: cy - 27, width: 54, height: 54)
         spinner.center = CGPoint(x: cx, y: cy)
-        timeLabel.frame = CGRect(x: 14 + left, y: h - 54, width: w - 120, height: 18)
+        timeLabel.frame = CGRect(x: 14 + left, y: h - 54, width: 100, height: 18)
+        chapterLabel.frame = CGRect(x: 14 + left + 100, y: h - 54, width: max(0, w - 14 - left - 100 - 60 - right), height: 18)
         fullscreenButton.frame = CGRect(x: w - 48 - right, y: h - 56, width: 44, height: 44)
         seekBar.frame = CGRect(x: 6 + left, y: h - 30, width: w - 12 - left - right, height: 28)
         errorLabel.frame = CGRect(x: 24, y: cy - 44, width: w - 48, height: 50)

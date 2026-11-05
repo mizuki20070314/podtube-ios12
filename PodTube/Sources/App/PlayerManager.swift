@@ -32,6 +32,8 @@ final class PlayerManager: NSObject {
     var upNext: [VideoItem] = []
 
     var loops = false
+    /// Chapters parsed from the description of the current video.
+    var chapters: [Chapter] = []
     private(set) var speed: Double = Settings.playbackSpeed
     private(set) var maxHeight: Int = Settings.maxQuality
 
@@ -137,6 +139,7 @@ final class PlayerManager: NSObject {
 
         generation += 1
         let gen = generation
+        if self.video?.id != video.id { chapters = [] }
         self.video = video
         info = nil
         errorMessage = nil

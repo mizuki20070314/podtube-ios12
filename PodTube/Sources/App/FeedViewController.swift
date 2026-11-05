@@ -20,6 +20,10 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     var emptyTitle: String { return L10n.t("common.empty") }
     var emptyIcon: String { return "search" }
     var emptyDetail: String? { return nil }
+    /// Optional button shown in the empty state (e.g. "Import").
+    var emptyButton: String? { return nil }
+    func emptyAction() {}
+    private var stateIsError = false
     var showsRefreshControl: Bool { return true }
     /// Area (inside `view`) that the list occupies; subclasses reserve space for their own bars.
     var listFrame: CGRect { return view.bounds }
@@ -67,7 +71,10 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             refresher.addTarget(self, action: #selector(pulled), for: .valueChanged)
             tableView.refreshControl = refresher
         }
-        stateView.onAction = { [weak self] in self?.reload() }
+        stateView.onAction = { [weak self] in
+            guard let self = self else { return }
+            if self.stateIsError { self.reload() } else { self.emptyAction() }
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(themeChanged), name: .themeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(storeChanged), name: .storeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(miniPlayerChanged), name: .miniPlayerChanged, object: nil)
@@ -128,13 +135,15 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                     self.hasLoadedOnce = true
                     self.didReceiveFirstPage(page)
                     if self.items.isEmpty {
-                        self.stateView.show(icon: self.emptyIcon, title: self.emptyTitle, detail: self.emptyDetail)
+                        self.stateIsError = false
+                        self.stateView.show(icon: self.emptyIcon, title: self.emptyTitle, detail: self.emptyDetail, button: self.emptyButton)
                     } else {
                         self.stateView.hide()
                     }
                     self.tableView.reloadData()
                 case .failure(let error):
                     if self.items.isEmpty {
+                        self.stateIsError = true
                         self.stateView.show(icon: "cloud_off", title: L10n.t("common.error"),
                                             detail: error.localizedDescription, button: L10n.t("common.retry"))
                     }
@@ -163,7 +172,8 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         append(page)
         hasLoadedOnce = true
         if items.isEmpty {
-            stateView.show(icon: emptyIcon, title: emptyTitle, detail: emptyDetail)
+            stateIsError = false
+            stateView.show(icon: emptyIcon, title: emptyTitle, detail: emptyDetail, button: emptyButton)
         } else {
             stateView.hide()
         }

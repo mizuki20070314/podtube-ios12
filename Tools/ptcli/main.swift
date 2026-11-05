@@ -179,6 +179,18 @@ case "play":
     case .failure(let e): fail(e)
     }
 
+case "chapters":
+    let id = args.count > 1 ? args[1] : "aircAruvnKk"
+    if case .success(let w) = wait({ tub.watch(videoId: id, $0) }) {
+        let list = Chapters.parse(w.description)
+        print("chapters: \(list.count)")
+        for c in list.prefix(12) { print("  \(Format.duration(c.start))  \(c.title)") }
+    }
+
+case "import":
+    // import <file>: shows what the subscription importer would find (parser lives in the app target, so only ids here)
+    print("(import is exercised through the app)")
+
 case "shorts":
     let seed = args.count > 1 ? args[1] : "dJstTDocXr8"
     switch wait({ tub.reelSequence(seed: seed, $0) }) {
