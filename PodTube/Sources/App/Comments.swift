@@ -50,7 +50,7 @@ final class CommentCell: UITableViewCell {
         likesLabel.text = c.likes
         likesLabel.textColor = Theme.secondaryText
         repliesLabel.text = c.replyCount > 0 ? L10n.t("comments.replies", "\(c.replyCount)") : nil
-        repliesLabel.textColor = Theme.link
+        repliesLabel.textColor = Theme.secondaryText
         setNeedsLayout()
     }
 
