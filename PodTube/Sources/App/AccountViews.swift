@@ -15,6 +15,8 @@ final class AccountHeaderView: UIControl {
         avatar.clipsToBounds = true
         avatar.layer.cornerRadius = 26
         nameLabel.font = Theme.font(17, .semibold)
+        nameLabel.adjustsFontSizeToFitWidth = true // "Google アカウントでログイン" is wider than the 320 pt column
+        nameLabel.minimumScaleFactor = 0.75
         subLabel.font = Theme.font(13)
         subLabel.numberOfLines = 2
         chevron.image = Icons.image("chevron_right", size: 22)
