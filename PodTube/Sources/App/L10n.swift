@@ -104,7 +104,7 @@ enum L10n {
         "player.autoTranslate": ("自動翻訳", "Auto-translate"),
 
         // search
-        "search.placeholder": ("YouTube を検索", "Search YouTube"),
+        "search.placeholder": ("検索、または YouTube のリンクを貼り付け", "Search or paste a YouTube link"),
         "search.history": ("検索履歴", "Search history"),
         "search.clearHistory": ("検索履歴を消去", "Clear search history"),
         "search.filters": ("検索フィルタ", "Search filters"),
@@ -185,6 +185,7 @@ enum L10n {
         "comments.replies": ("%@ 件の返信", "%@ replies"),
 
         // settings
+        "link.failed": ("リンクを開けませんでした", "Couldn't open that link"),
         "diag.title": ("接続診断", "Diagnostics"),
         "diag.run": ("診断を実行", "Run diagnostics"),
         "settings.title": ("設定", "Settings"),

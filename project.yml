@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_BITCODE: "NO"
     ONLY_ACTIVE_ARCH: "NO"
@@ -44,6 +44,10 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleLightContent
         LSRequiresIPhoneOS: true
         ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: com.podtube.ios12
+            CFBundleURLSchemes:
+              - podtube
         CFBundleLocalizations:
           - ja
           - en

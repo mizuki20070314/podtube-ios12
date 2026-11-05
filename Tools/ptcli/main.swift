@@ -189,6 +189,12 @@ case "chapters":
         for c in list.prefix(12) { print("  \(Format.duration(c.start))  \(c.title)") }
     }
 
+case "link":
+    for a in args.dropFirst() { print("\(a)  ->  \(String(describing: LinkParser.parse(a)))") }
+    if args.count > 1, case .some(.resolve(let u)) = LinkParser.parse(args[1]) {
+        if case .success(let id) = wait({ tub.resolveChannel(url: u, $0) }) { print("resolved channel id: \(id)") }
+    }
+
 case "import":
     // import <file>: shows what the subscription importer would find
     guard args.count > 1, let data = FileManager.default.contents(atPath: args[1]) else {

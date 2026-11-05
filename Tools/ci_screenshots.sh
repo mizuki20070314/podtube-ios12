@@ -51,6 +51,11 @@ shot 21_search_light 14 -pt-theme light -route "search:ホロライブ"
 shot 22_shorts_light 22 -pt-theme light -route "tab:1"
 shot 24_diag 26 -pt-theme dark -route "diag"
 shot 25_channel_about 20 -pt-theme dark -route "channel:UCuAXFkgsw1L7xaCfnd5JJOw;wait:7;channeltab:3"
+shot 30_home_320 16 -pt-theme dark -pt-size 320x568
+shot 31_watch_320 18 -pt-theme dark -pt-size 320x568 -route "watch:dQw4w9WgXcQ;wait:7;w:controls"
+shot 32_library_320 8 -pt-theme dark -pt-size 320x568 -route "tab:3"
+shot 33_downloads 6 -pt-theme dark -route "tab:3;downloads"
+shot 34_manage_subs 6 -pt-theme dark -route "tab:2;manage"
 shot 23_chapters 18 -pt-theme dark -route "watch:aircAruvnKk;wait:8;w:chapters"
 
 xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true

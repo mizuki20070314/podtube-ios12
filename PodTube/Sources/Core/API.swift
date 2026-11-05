@@ -86,6 +86,19 @@ extension InnerTube {
         }
     }
 
+    /// Resolves vanity URLs (@handle, /user/…) to a channel id.
+    func resolveChannel(url: String, _ done: @escaping Done<String>) {
+        post("navigation/resolve_url", body: ["url": url]) { r in
+            switch r {
+            case .success(let json):
+                let id = json["endpoint"]["browseEndpoint"]["browseId"].stringValue
+                if id.isEmpty { done(.failure(InnerTubeError.empty)) } else { done(.success(id)) }
+            case .failure(let e):
+                done(.failure(e))
+            }
+        }
+    }
+
     /// Name / avatar / subscriber text of a channel, fetched cheaply through its Videos tab.
     func channelBasics(id: String, _ done: @escaping Done<ChannelInfo>) {
         post("browse", body: ["browseId": id, "params": "EgZ2aWRlb3PyBgQKAjoA"]) { r in

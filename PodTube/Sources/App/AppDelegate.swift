@@ -12,14 +12,34 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         _ = PlayerManager.shared
         _ = DownloadManager.shared
 
-        let win = UIWindow(frame: UIScreen.main.bounds)
+        // CI only: -pt-size 320x568 previews the iPod touch layout inside a larger simulator screen.
+        var frame = UIScreen.main.bounds
+        var previewSmall = false
+        if let s = DebugRoutes.value(for: "-pt-size") {
+            let p = s.split(separator: "x").compactMap { Double($0) }
+            if p.count == 2 {
+                let sw = Double(frame.width)
+                let sh = Double(frame.height)
+                frame = CGRect(x: (sw - p[0]) / 2, y: (sh - p[1]) / 2, width: p[0], height: p[1])
+                previewSmall = true
+            }
+        }
+        let win = UIWindow(frame: frame)
         win.backgroundColor = Theme.background
         let root = RootViewController()
+        if previewSmall, #available(iOS 11.0, *) {
+            root.additionalSafeAreaInsets = UIEdgeInsets(top: 20, left: 0, bottom: 0, right: 0)
+        }
         win.rootViewController = root
         win.makeKeyAndVisible()
         window = win
         Router.shared.window = win
         Router.shared.root = root
+        return true
+    }
+
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { Router.shared.open(link: url.absoluteString) }
         return true
     }
 
@@ -32,7 +52,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 /// Launch arguments used by the CI smoke test to drive the UI and take screenshots.
 ///   -pt-theme light|dark   -pt-region JP|US   -route "watch:ID;wait:6;comments"
 enum DebugRoutes {
-    private static func value(for key: String) -> String? {
+    static func value(for key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: key), i + 1 < args.count else { return nil }
         return args[i + 1]
@@ -70,6 +90,8 @@ enum DebugRoutes {
         case "channel": Router.shared.openChannel(id: arg)
         case "playlist": Router.shared.openPlaylist(id: arg)
         case "settings": Router.shared.openSettings()
+        case "downloads": Router.shared.push(DownloadsViewController())
+        case "manage": Router.shared.push(ChannelsManagerViewController())
         case "diag":
             let vc = DiagnosticsViewController()
             Router.shared.push(vc)

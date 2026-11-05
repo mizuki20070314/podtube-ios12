@@ -69,6 +69,27 @@ final class Router {
         push(SettingsViewController())
     }
 
+    /// Opens whatever a pasted / shared link points at. Returns false when the text is not a YouTube link.
+    @discardableResult
+    func open(link text: String) -> Bool {
+        guard let target = LinkParser.parse(text) else { return false }
+        switch target {
+        case .video(let id, let list):
+            play(VideoItem(id: id), queue: nil, playlistId: list)
+        case .playlist(let id):
+            openPlaylist(id: id)
+        case .channel(let id):
+            openChannel(id: id)
+        case .resolve(let url):
+            InnerTube.shared.resolveChannel(url: url) { [weak self] result in
+                DispatchQueue.main.async {
+                    if case .success(let id) = result { self?.openChannel(id: id) } else { Toast.show(L10n.t("link.failed")) }
+                }
+            }
+        }
+        return true
+    }
+
     // MARK: Menus
 
     func showVideoMenu(_ video: VideoItem, extra: [SheetAction] = []) {

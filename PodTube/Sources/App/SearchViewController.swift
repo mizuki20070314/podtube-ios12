@@ -136,6 +136,7 @@ final class SearchViewController: UIViewController, HidesNavigationBar, UITextFi
         let t = q.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return }
         field.resignFirstResponder()
+        if Router.shared.open(link: t) { return }
         Router.shared.openSearch(query: t)
     }
 

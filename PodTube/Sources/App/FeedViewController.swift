@@ -303,7 +303,16 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         switch items[indexPath.row] {
         case .video(let v): play(v)
         case .channel(let c): Router.shared.openChannel(id: c.id, name: c.name)
-        case .playlist(let p): Router.shared.openPlaylist(id: p.id, title: p.title)
+        case .playlist(let p):
+            if p.id.hasPrefix("RD") && p.id.count == 13 {
+                // A Mix ("RD" + video id) cannot be browsed; play its seed video and let autoplay follow the related list.
+                var seed = VideoItem(id: String(p.id.dropFirst(2)))
+                seed.title = p.title
+                seed.thumbnail = p.thumbnail
+                Router.shared.play(seed)
+            } else {
+                Router.shared.openPlaylist(id: p.id, title: p.title)
+            }
         case .shorts, .text: break
         }
     }
