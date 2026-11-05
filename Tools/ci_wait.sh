@@ -10,7 +10,4 @@ for i in $(seq 1 240); do
   sleep 15
 done
 gh run view "$ID" --json conclusion,jobs -q '.conclusion + " | " + (.jobs | map(.name[0:14] + "=" + (.conclusion // .status)) | join(", "))'
-rm -rf "$OUT"
-gh run download "$ID" -n screenshots -D "$OUT" >/dev/null 2>&1
-ls "$OUT" 2>/dev/null | tr '\n' ' '
-echo
+bash "$(dirname "$0")/ci_download.sh" "$ID" screenshots "$OUT"
