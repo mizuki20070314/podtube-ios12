@@ -188,8 +188,14 @@ case "chapters":
     }
 
 case "import":
-    // import <file>: shows what the subscription importer would find (parser lives in the app target, so only ids here)
-    print("(import is exercised through the app)")
+    // import <file>: shows what the subscription importer would find
+    guard args.count > 1, let data = FileManager.default.contents(atPath: args[1]) else {
+        print("usage: import <file>")
+        exit(1)
+    }
+    let channels = SubscriptionParser.parse(data)
+    print("channels: \(channels.count)")
+    for c in channels.prefix(10) { print("  \(c.id)  \(c.name)") }
 
 case "shorts":
     let seed = args.count > 1 ? args[1] : "dJstTDocXr8"
