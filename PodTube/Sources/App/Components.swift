@@ -957,6 +957,8 @@ final class SheetView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         dim.frame = bounds
+        let pw = min(bounds.width, 560) // on an iPad the sheet is a centred panel, not a full-width bar
+        let px = ((bounds.width - pw) / 2).rounded()
         var safeBottom: CGFloat = 0
         if #available(iOS 11.0, *) { safeBottom = safeAreaInsets.bottom }
         bottomInset = safeBottom
@@ -966,16 +968,16 @@ final class SheetView: UIView {
         let panelH = titleHeight + scrollH + 8 + safeBottom
         let wasHidden = panel.transform != .identity
         panel.transform = .identity
-        panel.frame = CGRect(x: 0, y: bounds.height - panelH, width: bounds.width, height: panelH)
+        panel.frame = CGRect(x: px, y: bounds.height - panelH, width: pw, height: panelH)
         if wasHidden && dim.alpha == 0 { panel.transform = CGAffineTransform(translationX: 0, y: panelH) }
-        titleLabel.frame = CGRect(x: 16, y: 0, width: bounds.width - 32, height: titleHeight)
-        scroll.frame = CGRect(x: 0, y: titleHeight, width: bounds.width, height: scrollH)
-        scroll.contentSize = CGSize(width: bounds.width, height: contentH)
+        titleLabel.frame = CGRect(x: 16, y: 0, width: pw - 32, height: titleHeight)
+        scroll.frame = CGRect(x: 0, y: titleHeight, width: pw, height: scrollH)
+        scroll.contentSize = CGSize(width: pw, height: contentH)
         for (i, row) in rows.enumerated() {
-            row.frame = CGRect(x: 0, y: CGFloat(i) * rowHeight, width: bounds.width, height: rowHeight)
+            row.frame = CGRect(x: 0, y: CGFloat(i) * rowHeight, width: pw, height: rowHeight)
             let hasIcon = actions[i].icon != nil
             let tx: CGFloat = hasIcon ? 60 : 16
-            let tw = bounds.width - tx - 52
+            let tw = pw - tx - 52
             if let tl = row.viewWithTag(9001) as? UILabel {
                 if let sl = row.viewWithTag(9002) as? UILabel {
                     tl.frame = CGRect(x: tx, y: 9, width: tw, height: 21)
@@ -985,7 +987,7 @@ final class SheetView: UIView {
                 }
             }
             if let c = row.viewWithTag(9003) {
-                c.frame = CGRect(x: bounds.width - 16 - 22, y: (rowHeight - 22) / 2, width: 22, height: 22)
+                c.frame = CGRect(x: pw - 16 - 22, y: (rowHeight - 22) / 2, width: 22, height: 22)
             }
         }
     }

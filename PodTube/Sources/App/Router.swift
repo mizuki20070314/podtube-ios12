@@ -211,6 +211,12 @@ final class Router {
     func share(items: [Any]) {
         guard let host = root else { return }
         let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let pop = vc.popoverPresentationController {
+            // required on an iPad (crashes without a source); phones ignore it
+            pop.sourceView = host.view
+            pop.sourceRect = CGRect(x: host.view.bounds.midX, y: host.view.bounds.maxY - 1, width: 1, height: 1)
+            pop.permittedArrowDirections = []
+        }
         host.present(vc, animated: true, completion: nil)
     }
 }

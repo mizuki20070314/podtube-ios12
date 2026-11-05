@@ -193,6 +193,16 @@ case "play":
     case .success(let p):
         print("title=\(p.title) author=\(p.author) duration=\(p.duration) live=\(p.isLive) maxHeight=\(p.maxHeight)")
         if let u = p.hlsURL { print("HLS:", u.absoluteString.prefix(90), "->", check(u)) }
+        if let u = p.hlsURL, ProcessInfo.processInfo.environment["PT_DUMP"] != nil {
+            func fetch(_ u: URL) -> String { return (try? String(contentsOf: u, encoding: .utf8)) ?? "" }
+            let master = fetch(u)
+            let lines = master.components(separatedBy: "\n")
+            for l in lines where l.hasPrefix("#EXT-X-STREAM-INF") || l.hasPrefix("#EXT-X-MEDIA") { print("  ", l.prefix(170)) }
+            if let first = lines.first(where: { $0.hasPrefix("https://") }), let fu = URL(string: first) {
+                print("-- first media playlist:")
+                for l in fetch(fu).components(separatedBy: "\n").prefix(14) { print("  ", l.prefix(150)) }
+            }
+        }
         if let u = p.progressiveURL { print("progressive ->", check(u, range: "bytes=0-1023")) }
         if let u = p.videoURL { print("video ->", check(u, range: "bytes=0-1023")) }
         if let u = p.audioURL { print("audio ->", check(u, range: "bytes=0-1023")) }

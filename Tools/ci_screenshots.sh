@@ -1,10 +1,12 @@
 #!/bin/bash
 # Installs the simulator build and takes screenshots of several screens (used by CI; run on macOS).
-# usage: Tools/ci_screenshots.sh <PodTube.app> <simulator-udid> [scenario-filter]
+# usage: Tools/ci_screenshots.sh <PodTube.app> <simulator-udid> [scenario-filter] [full|core]
+#   full = every screen (reference phone), core = the key screens (notch phone, iPad)
 set -u
 APP="$1"
 UDID="$2"
 FILTER="${3:-}"
+SET="${4:-full}"
 BUNDLE=com.podtube.ios12
 OUT=shots
 mkdir -p "$OUT"
@@ -27,6 +29,8 @@ shot() {
 }
 
 VID=dQw4w9WgXcQ
+
+if [ "$SET" = "full" ]; then
 shot 01_home_dark 16 -pt-theme dark
 shot 02_home_light 16 -pt-theme light
 shot 03_search 14 -pt-theme dark -route "search:猫"
@@ -72,6 +76,31 @@ shot 50_save_sheet 8 -pt-theme dark -pt-demo-account -route "savesheet"
 shot 51_library_account_320 10 -pt-theme dark -pt-demo-account -pt-size 320x568 -route "tab:3"
 shot 52_signin_320 6 -pt-theme dark -pt-size 320x568 -route "signin"
 shot 53_home_account_light 12 -pt-theme light -pt-demo-account
+fi
+
+if [ "$SET" = "core" ]; then
+shot 70_home 16 -pt-theme dark
+shot 71_watch 18 -pt-theme dark -route "watch:$VID"
+shot 72_watch_controls 14 -pt-theme dark -route "watch:$VID;wait:7;w:controls"
+shot 73_comments 22 -pt-theme dark -route "watch:$VID;wait:9;comments"
+shot 74_landscape 22 -pt-theme dark -route "watch:$VID;wait:9;landscape;wait:3"
+shot 75_mini 18 -pt-theme dark -route "watch:$VID;wait:9;minimize;wait:2"
+shot 76_search 14 -pt-theme dark -route "search:猫"
+shot 77_channel 14 -pt-theme dark -route "channel:UCuAXFkgsw1L7xaCfnd5JJOw"
+shot 78_shorts 22 -pt-theme dark -route "tab:1"
+shot 79_subs 6 -pt-theme dark -route "tab:2"
+shot 80_library 6 -pt-theme dark -route "tab:3"
+shot 81_settings 6 -pt-theme dark -route "settings"
+shot 82_sheet 6 -pt-theme dark -route "sheet"
+shot 83_signin 6 -pt-theme dark -route "signin"
+shot 84_home_account 12 -pt-theme dark -pt-demo-account
+shot 85_library_account 10 -pt-theme dark -pt-demo-account -route "tab:3"
+fi
+
+# Live streams (24/7 news channels): the player must start, or show the AVFoundation error.
+shot 60_live_cbs 26 -pt-theme dark -route "watch:1w9CMPt0Sic"
+shot 61_live_cbs_controls 22 -pt-theme dark -route "watch:1w9CMPt0Sic;wait:14;w:controls"
+shot 62_live_ann 26 -pt-theme dark -route "watch:coYw-eVU0Ks"
 
 xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
 ls -la "$OUT"

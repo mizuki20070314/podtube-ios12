@@ -230,6 +230,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private(set) var progress: CGFloat = 0
     private var expandedFrame = CGRect.zero
+    private var fullscreenMode = false
     private var miniFrame = CGRect.zero
     private var safeTop: CGFloat = 20
     private var panStart: CGFloat = 0
@@ -239,7 +240,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     var onProgress: ((CGFloat) -> Void)?
     var onRequestLandscape: ((Bool) -> Void)?
 
-    var isFullscreenLayout: Bool { return progress == 0 && expandedFrame.width > expandedFrame.height }
+    var isFullscreenLayout: Bool { return progress == 0 && fullscreenMode }
     var currentVideo: VideoItem? { return content.video }
 
     // MARK: Lifecycle
@@ -272,7 +273,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         controls.onCollapse = { [weak self] in self?.setMinimized(true, animated: true) }
         controls.onFullscreen = { [weak self] in
             guard let self = self else { return }
-            self.onRequestLandscape?(!(self.expandedFrame.width > self.expandedFrame.height))
+            self.onRequestLandscape?(!self.fullscreenMode)
         }
         controls.onSettings = { [weak self] in self?.showSettings() }
         controls.onCaptions = { [weak self] in self?.showCaptions() }
@@ -310,8 +311,9 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
 
     // MARK: Geometry (provided by the root controller)
 
-    func updateGeometry(expanded: CGRect, mini: CGRect, safeTop: CGFloat) {
+    func updateGeometry(expanded: CGRect, mini: CGRect, safeTop: CGFloat, fullscreen: Bool) {
         expandedFrame = expanded
+        fullscreenMode = fullscreen
         miniFrame = mini
         self.safeTop = safeTop
         applyProgress(progress)
@@ -322,10 +324,10 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     func applyProgress(_ p: CGFloat) {
         guard expandedFrame.width > 0 else { return }
         let W = expandedFrame.width
-        let landscape = expandedFrame.width > expandedFrame.height
+        let landscape = fullscreenMode
         let y = lerp(expandedFrame.minY, miniFrame.minY, p)
         let h = lerp(expandedFrame.height, miniFrame.height, p)
-        view.frame = CGRect(x: 0, y: y, width: W, height: h)
+        view.frame = CGRect(x: lerp(expandedFrame.minX, miniFrame.minX, p), y: y, width: W, height: h)
         let b = view.bounds
         let top: CGFloat = landscape ? 0 : safeTop
 
@@ -421,7 +423,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
             let v = pan.velocity(in: view)
             if abs(v.y) < abs(v.x) * 1.2 { return false }
             if progress < 0.02 {
-                if expandedFrame.width > expandedFrame.height { return false }
+                if fullscreenMode { return false }
                 return pan.location(in: view).y <= playerHost.frame.maxY
             }
             return true

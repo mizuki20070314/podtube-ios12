@@ -10,6 +10,8 @@ final class RootViewController: UIViewController, UINavigationControllerDelegate
     private(set) var selectedIndex = 0
     private let watch = WatchViewController()
     private var forcedMask: UIInterfaceOrientationMask?
+    static let maxColumnWidth: CGFloat = 768
+    private var isPad: Bool { return UIDevice.current.userInterfaceIdiom == .pad }
     private let shorts = ShortsViewController()
 
     /// Space that list screens must leave free when the mini player is showing.
@@ -87,11 +89,17 @@ final class RootViewController: UIViewController, UINavigationControllerDelegate
             safeTop = view.safeAreaInsets.top
         }
         let tabH = TabBarView.contentHeight + safeBottom
-        tabBar.frame = CGRect(x: 0, y: b.height - tabH, width: b.width, height: tabH)
-        tabContainer.frame = CGRect(x: 0, y: 0, width: b.width, height: b.height - tabH)
+        // iPad: the phone layouts are centred in a column instead of being stretched over the whole screen
+        let colW = isPad ? min(b.width, RootViewController.maxColumnWidth) : b.width
+        let colX = ((b.width - colW) / 2).rounded()
+        tabBar.frame = CGRect(x: colX, y: b.height - tabH, width: colW, height: tabH)
+        tabContainer.frame = CGRect(x: colX, y: 0, width: colW, height: b.height - tabH)
         for nav in navs { nav.view.frame = tabContainer.bounds }
-        let mini = CGRect(x: 0, y: b.height - tabH - WatchViewController.miniHeight, width: b.width, height: WatchViewController.miniHeight)
-        watch.updateGeometry(expanded: b, mini: mini, safeTop: safeTop)
+        let mini = CGRect(x: colX, y: b.height - tabH - WatchViewController.miniHeight, width: colW, height: WatchViewController.miniHeight)
+        let column = CGRect(x: colX, y: 0, width: colW, height: b.height)
+        // phones go full screen when turned sideways; on an iPad only the fullscreen button does
+        let fullscreen = b.width > b.height && (!isPad || forcedMask == .landscape)
+        watch.updateGeometry(expanded: fullscreen ? b : column, mini: mini, safeTop: safeTop, fullscreen: fullscreen)
     }
 
     // MARK: Tabs
@@ -178,17 +186,22 @@ final class RootViewController: UIViewController, UINavigationControllerDelegate
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         if let m = forcedMask { return m }
+        if isPad { return .all }
         if watch.isActive && watch.progress < 0.5 { return .allButUpsideDown }
         return .portrait
     }
 
     func setLandscape(_ landscape: Bool) {
-        forcedMask = landscape ? .landscape : .portrait
+        // an iPad that is already held sideways stays that way when leaving fullscreen
+        forcedMask = landscape ? .landscape : (isPad ? nil : .portrait)
         UIViewController.attemptRotationToDeviceOrientation()
-        let target: UIInterfaceOrientation = landscape ? .landscapeRight : .portrait
-        UIDevice.current.setValue(target.rawValue, forKey: "orientation")
-        UIViewController.attemptRotationToDeviceOrientation()
-        if !landscape {
+        if landscape || !isPad {
+            let target: UIInterfaceOrientation = landscape ? .landscapeRight : .portrait
+            UIDevice.current.setValue(target.rawValue, forKey: "orientation")
+            UIViewController.attemptRotationToDeviceOrientation()
+        }
+        view.setNeedsLayout() // no rotation happens when the iPad is already in the requested orientation
+        if !landscape && !isPad {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 self?.forcedMask = nil
                 UIViewController.attemptRotationToDeviceOrientation()
