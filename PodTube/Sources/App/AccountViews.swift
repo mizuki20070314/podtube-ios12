@@ -98,6 +98,10 @@ final class AccountListViewController: FeedViewController {
     }
 
     private let kind: Kind
+    /// Ids of the rows that come from this app's own history (shown in front of the account's, see HistoryMerge).
+    private var localIds = Set<String>()
+
+    override var showsChannelAvatars: Bool { return kind == .history }
 
     init(kind: Kind) {
         self.kind = kind
@@ -136,13 +140,28 @@ final class AccountListViewController: FeedViewController {
             done(.failure(InnerTubeError.api(401, L10n.t("account.signInRequired"))))
             return
         }
-        InnerTube.shared.accountBrowse(kind.browseId) { r in
+        // history: what was played in this app goes in front (YouTube's own history never learns about it)
+        let local = kind == .history ? HistoryMerge.recent() : []
+        InnerTube.shared.accountBrowse(kind.browseId) { [weak self] r in
             if case .failure(let e) = r, let ie = e as? InnerTubeError, case .authRequired = ie {
                 done(.failure(InnerTubeError.api(401, L10n.t("account.signInRequired"))))
-            } else {
-                done(r)
+                return
             }
+            if local.isEmpty {
+                done(r)
+                return
+            }
+            var page = FeedPage()
+            if case .success(let p) = r { page = p } // offline: the plays of this app alone
+            page.items = HistoryMerge.merge(local: local, account: page.items)
+            DispatchQueue.main.async { self?.localIds = Set(local.map { $0.id }) }
+            done(.success(page))
         }
+    }
+
+    /// A video was just played in this app: it joins the history list.
+    override func storeChanged() {
+        if kind == .history && isViewLoaded && Account.shared.isSignedIn { reload() }
     }
 
     override func play(_ video: VideoItem) {
@@ -162,6 +181,12 @@ final class AccountListViewController: FeedViewController {
         case .liked:
             return [SheetAction(title: L10n.t("video.unlike"), icon: "delete") { [weak self] in
                 Account.shared.setLike(video, .none)
+                self?.removeVideo(id: video.id)
+            }]
+        case .history:
+            guard localIds.contains(video.id) else { return [] }
+            return [SheetAction(title: L10n.t("video.notInterested"), icon: "delete") { [weak self] in
+                Store.shared.removeHistory(video.id)
                 self?.removeVideo(id: video.id)
             }]
         default:

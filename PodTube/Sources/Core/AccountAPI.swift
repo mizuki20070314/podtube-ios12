@@ -188,31 +188,4 @@ extension InnerTube {
             }
         }
     }
-
-    // MARK: Watch history
-
-    /// Tells YouTube that playback started, which is what puts a video into the account's watch history.
-    /// `url` is `playbackTracking.videostatsPlaybackUrl` of the player response. Best effort: errors are ignored.
-    func reportPlaybackStart(_ url: URL) {
-        guard AccountDemo.responder == nil, AuthSession.shared.isSignedIn,
-              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
-        let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-        var cpn = ""
-        for _ in 0..<16 { cpn.append(alphabet.randomElement() ?? "a") }
-        var items = (comps.queryItems ?? []).filter { !["ver", "cpn", "cmt", "el"].contains($0.name) }
-        items.append(URLQueryItem(name: "ver", value: "2"))
-        items.append(URLQueryItem(name: "cpn", value: cpn))
-        items.append(URLQueryItem(name: "cmt", value: "0"))
-        items.append(URLQueryItem(name: "el", value: "detailpage"))
-        comps.queryItems = items
-        guard let target = comps.url else { return }
-        AuthSession.shared.validAccessToken { r in
-            guard case .success(let token) = r else { return }
-            var req = URLRequest(url: target)
-            req.timeoutInterval = 15
-            req.setValue(Clients.tv.userAgent, forHTTPHeaderField: "User-Agent")
-            req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-            Http.shared.send(req) { _ in }
-        }
-    }
 }

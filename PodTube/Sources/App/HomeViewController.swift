@@ -1,7 +1,7 @@
 import UIKit
 
 /// Home tab: app bar, topic chips and the recommendation feed.
-final class HomeViewController: FeedViewController, HidesNavigationBar {
+final class HomeViewController: FeedViewController, HidesNavigationBar, ScrollsToTop {
     override var showsChannelAvatars: Bool { return true }
     private let appBar = AppBarView()
     private let chipBar = ChipBar()
@@ -51,16 +51,12 @@ final class HomeViewController: FeedViewController, HidesNavigationBar {
         reload()
     }
 
-    /// Personal recommendations; falls back to the anonymous feed when the account page cannot be read.
-    private func accountHomeOrAnonymous(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
-        InnerTube.shared.accountHome { [weak self] r in
-            if case .success(let page) = r, !page.items.isEmpty {
-                done(r)
-                return
-            }
-            DispatchQueue.main.async { self?.continuationEndpoint = "browse" }
-            InnerTube.shared.home(done)
-        }
+    /// Tapping the Home tab again scrolls the feed back to its top.
+    func scrollToTop() { tableView.setContentOffset(CGPoint(x: 0, y: -tableView.contentInset.top), animated: true) }
+
+    /// The "All" feed remembers what it showed, so that the next refresh brings other videos first.
+    override func didDisplayVideo(_ v: VideoItem) {
+        if selected == 0 { HomeSeen.shared.mark(v.id) }
     }
 
     private func buildChips() {
@@ -97,12 +93,17 @@ final class HomeViewController: FeedViewController, HidesNavigationBar {
 
     override func fetchFirstPage(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
         if selected == 0 {
-            if Account.shared.isSignedIn {
-                continuationEndpoint = "tv"
-                accountHomeOrAnonymous(done)
-            } else {
-                continuationEndpoint = "browse"
-                InnerTube.shared.home(done)
+            // New videos first: what was already shown goes behind them. A refresh the user asked for also gets a
+            // fresh anonymous visitor id (the anonymous feed changes far more with it).
+            InnerTube.shared.freshHome(signedIn: Account.shared.isSignedIn, seen: HomeSeen.shared.ids,
+                                       newVisitor: userRequestedRefresh) { [weak self] r in
+                switch r {
+                case .success(let feed):
+                    DispatchQueue.main.async { self?.continuationEndpoint = feed.endpoint }
+                    done(.success(feed.page))
+                case .failure(let e):
+                    done(.failure(e))
+                }
             }
         } else {
             let d = defs[selected]

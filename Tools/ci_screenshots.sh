@@ -77,6 +77,9 @@ shot 51_library_account_320 10 -pt-theme dark -pt-demo-account -pt-size 320x568 
 shot 52_signin_320 6 -pt-theme dark -pt-size 320x568 -route "signin"
 shot 53_home_account_light 20 -pt-theme light -pt-demo-account
 shot 54_home_account_320 20 -pt-theme dark -pt-demo-account -pt-size 320x568
+shot 55_history_account 16 -pt-theme dark -pt-demo-account -route "tab:3;acctlist:history"
+shot 56_history_320 16 -pt-theme dark -pt-demo-account -pt-size 320x568 -route "tab:3;acctlist:history"
+shot 57_history_local 12 -pt-theme dark -route "tab:3;localhistory"
 fi
 
 if [ "$SET" = "core" ]; then
@@ -97,6 +100,7 @@ shot 83_signin 6 -pt-theme dark -route "signin"
 shot 84_home_account 20 -pt-theme dark -pt-demo-account
 shot 86_subs_account 18 -pt-theme dark -pt-demo-account -route "tab:2"
 shot 85_library_account 10 -pt-theme dark -pt-demo-account -route "tab:3"
+shot 87_history_account 16 -pt-theme dark -pt-demo-account -route "tab:3;acctlist:history"
 fi
 
 # Live streams (24/7 news channels): the player must start, or show the AVFoundation error.

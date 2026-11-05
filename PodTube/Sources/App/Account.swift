@@ -218,10 +218,4 @@ final class Account {
             if case .success(let s) = r { DispatchQueue.main.async { done(s) } }
         }
     }
-
-    /// Registers the view in the account's watch history (best effort, skipped while history is paused).
-    func reportPlayback(_ info: PlaybackInfo) {
-        guard isSignedIn, !Settings.pauseHistory, let url = info.statsURL else { return }
-        InnerTube.shared.reportPlaybackStart(url)
-    }
 }

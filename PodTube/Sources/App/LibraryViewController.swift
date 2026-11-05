@@ -21,6 +21,11 @@ final class StoredListViewController: FeedViewController {
 
     override var showsRefreshControl: Bool { return false }
 
+    override var showsChannelAvatars: Bool {
+        if case .history = kind { return true }
+        return false
+    }
+
     override var emptyTitle: String {
         switch kind {
         case .history: return L10n.t("library.emptyHistory")
@@ -532,7 +537,7 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
     // MARK: Table
 
     private var shelfVideos: [VideoItem] {
-        if signedIn { return accountHistory }
+        if signedIn { return HistoryMerge.merge(local: HistoryMerge.recent(), account: accountHistory, limit: 12) }
         return Array(Store.shared.history.prefix(12)).map { $0.video }
     }
 

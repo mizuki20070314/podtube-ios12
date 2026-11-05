@@ -130,6 +130,17 @@ enum DebugRoutes {
             case "playlists": Router.shared.push(AccountListViewController(kind: .playlists))
             default: Router.shared.push(AccountListViewController(kind: .history))
             }
+        case "localhistory":
+            // demo entries (only when the list is empty) so that the screen has content on a fresh simulator
+            if Store.shared.history.isEmpty {
+                for (i, id) in ["dQw4w9WgXcQ", "jNQXAC9IVRw", "aircAruvnKk"].enumerated() {
+                    var v = VideoItem(id: id)
+                    v.title = "視聴履歴（デモ） \(i + 1)"
+                    v.channelName = "デモチャンネル \(i + 1)"
+                    Store.shared.addHistory(v)
+                }
+            }
+            Router.shared.push(StoredListViewController(kind: .history))
         case "accountplaylist":
             Router.shared.openPlaylist(id: arg, title: nil)
         default: break

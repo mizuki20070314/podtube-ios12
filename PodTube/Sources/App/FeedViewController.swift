@@ -28,6 +28,8 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     /// Home / Subscriptions: every video row shows its channel icon (looked up when the feed does not carry it).
     var showsChannelAvatars: Bool { return false }
     private var avatarRefreshQueued = false
+    /// True while the list reloads because the user pulled it down (a subclass may then ask for something fresher).
+    private(set) var userRequestedRefresh = false
     /// Area (inside `view`) that the list occupies; subclasses reserve space for their own bars.
     var listFrame: CGRect { return view.bounds }
     /// Area used for the loading / empty / error state (defaults to the list area).
@@ -38,6 +40,9 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     }
 
     func didReceiveFirstPage(_ page: FeedPage) {}
+
+    /// A video row is about to appear on screen (Home remembers what it showed).
+    func didDisplayVideo(_ v: VideoItem) {}
 
     /// Extra entries for the "⋮" menu of a video row.
     func extraActions(for video: VideoItem) -> [SheetAction] { return [] }
@@ -141,7 +146,11 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         }
     }
 
-    @objc private func pulled() { reload() }
+    @objc private func pulled() {
+        userRequestedRefresh = true
+        reload()
+        userRequestedRefresh = false
+    }
 
     // MARK: Loading
 
@@ -339,6 +348,10 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             cell.configure(t)
             return cell
         }
+    }
+
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        if indexPath.row < items.count, case .video(let v) = items[indexPath.row] { didDisplayVideo(v) }
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

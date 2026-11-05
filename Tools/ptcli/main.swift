@@ -94,6 +94,30 @@ case "home":
     case .failure(let e): fail(e)
     }
 
+case "home-fresh":
+    // Simulates refreshing the anonymous Home feed: the user "sees" the first 5 videos of every load.
+    let rounds = args.count > 1 ? (Int(args[1]) ?? 4) : 4
+    let minFresh = args.count > 2 ? (Int(args[2]) ?? 12) : 12
+    var seenIds = Set<String>()
+    var previous: [String] = []
+    for i in 0..<rounds {
+        switch wait({ tub.freshHome(signedIn: false, seen: seenIds, newVisitor: i > 0, minFresh: minFresh, $0) }) {
+        case .success(let feed):
+            let ids = feed.page.items.compactMap { item -> String? in
+                if case .video(let v) = item { return v.id }
+                return nil
+            }
+            let top = Array(ids.prefix(10))
+            let alreadySeen = top.filter { seenIds.contains($0) }.count
+            let repeated = top.filter { previous.contains($0) }.count
+            print("refresh \(i + 1): \(ids.count) videos, top10 already seen: \(alreadySeen), top10 also in the previous refresh's top10: \(repeated), continuation=\(feed.page.continuation == nil ? "none" : "yes")")
+            print("   top10: " + top.joined(separator: " "))
+            previous = top
+            for id in ids.prefix(5) { seenIds.insert(id) }
+        case .failure(let e): fail(e)
+        }
+    }
+
 case "search":
     let q = args.count > 1 ? args[1] : "swift"
     var filter = SearchFilter()
@@ -354,6 +378,7 @@ case "a-state":
 
 default:
     print("commands: home | search q [channel|playlist|video|date] [more] | suggest q | watch id [playlist] | comments id | channel id [tabIndex] | playlist id | play id | shorts seed")
+    print("home-fresh [rounds] [minFresh]: anonymous Home refreshed repeatedly (seen videos go behind new ones)")
     print("sign-in: login-test (anonymous: requests a device code and polls once)")
     print("account (PT_TOKEN_FILE): a-whoami | a-home | a-subs | a-channels | a-browse id [more] | a-playlist id [more] | a-chan id | a-state videoId")
 }

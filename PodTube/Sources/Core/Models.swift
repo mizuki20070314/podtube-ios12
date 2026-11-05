@@ -246,8 +246,6 @@ struct PlaybackInfo {
     var audioURL: URL?
     var progressiveURL: URL?
     var captions: [CaptionTrack] = []
-    /// `playbackTracking.videostatsPlaybackUrl`: pinging it registers the view (watch history of a signed-in account).
-    var statsURL: URL?
     var videoFormats: [AdaptiveFormat] = []
     var audioFormats: [AdaptiveFormat] = []
     var maxHeight: Int = 0

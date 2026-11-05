@@ -696,7 +696,6 @@ enum Parse {
         }
 
         if let hls = sd["hlsManifestUrl"].string { info.hlsURL = URL(string: hls) }
-        if let stats = root["playbackTracking"]["videostatsPlaybackUrl"]["baseUrl"].string { info.statsURL = URL(string: stats) }
 
         // Muxed progressive (rarely present for this client, kept as a fallback).
         var bestMuxed = 0
