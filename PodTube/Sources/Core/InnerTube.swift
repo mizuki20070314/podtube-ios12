@@ -64,18 +64,86 @@ final class InnerTube {
 
     private let lock = NSLock()
     private var storedVisitor: String?
+    private var visitorLoading = false
+    private var visitorWaiters: [() -> Void] = []
 
     var visitorData: String? {
-        get { lock.lock(); defer { lock.unlock() }; return storedVisitor }
-        set { lock.lock(); storedVisitor = newValue; lock.unlock() }
+        lock.lock()
+        defer { lock.unlock() }
+        return storedVisitor
     }
 
     init() {
         let d = UserDefaults.standard
-        storedVisitor = d.string(forKey: "visitorData")
+        let stamp = d.double(forKey: "visitorDataTime")
+        let age = Date().timeIntervalSince1970 - stamp
+        if let v = d.string(forKey: "visitorData"), stamp > 0, age < 14 * 86400 {
+            storedVisitor = v
+        }
     }
 
-    private func makeRequest(endpoint: String, body: [String: Any], profile: ClientProfile) -> URLRequest? {
+    // MARK: Visitor data
+    //
+    // Requests that carry no `visitorData` are frequently answered with LOGIN_REQUIRED
+    // ("confirm you're not a bot"). A visitor id is cheap to get, so every request waits for one.
+
+    func ensureVisitor(_ done: @escaping () -> Void) {
+        lock.lock()
+        if storedVisitor != nil {
+            lock.unlock()
+            done()
+            return
+        }
+        visitorWaiters.append(done)
+        if visitorLoading {
+            lock.unlock()
+            return
+        }
+        visitorLoading = true
+        lock.unlock()
+        fetchVisitor()
+    }
+
+    /// Drops the current visitor id and gets a fresh one (used after a bot check).
+    func refreshVisitor(_ done: @escaping () -> Void) {
+        lock.lock()
+        storedVisitor = nil
+        lock.unlock()
+        ensureVisitor(done)
+    }
+
+    private func fetchVisitor() {
+        guard let req = makeRequest(endpoint: "visitor_id", body: [:], profile: Clients.visionOS, useVisitor: false) else {
+            finishVisitor(nil)
+            return
+        }
+        Http.shared.send(req) { [weak self] r in
+            var vd: String?
+            if case .success(let data) = r {
+                vd = JSON.parse(data)["responseContext"]["visitorData"].string
+            }
+            self?.finishVisitor(vd)
+        }
+    }
+
+    private func finishVisitor(_ vd: String?) {
+        lock.lock()
+        if let vd = vd {
+            storedVisitor = vd
+            let d = UserDefaults.standard
+            d.set(vd, forKey: "visitorData")
+            d.set(Date().timeIntervalSince1970, forKey: "visitorDataTime")
+        }
+        visitorLoading = false
+        let waiters = visitorWaiters
+        visitorWaiters = []
+        lock.unlock()
+        for w in waiters { w() }
+    }
+
+    // MARK: Requests
+
+    private func makeRequest(endpoint: String, body: [String: Any], profile: ClientProfile, useVisitor: Bool = true) -> URLRequest? {
         guard let url = URL(string: "https://www.youtube.com/youtubei/v1/\(endpoint)?prettyPrint=false") else { return nil }
         var client: [String: Any] = [
             "clientName": profile.name,
@@ -85,7 +153,7 @@ final class InnerTube {
             "gl": region
         ]
         for (k, v) in profile.extra { client[k] = v }
-        let visitor = visitorData
+        let visitor = useVisitor ? visitorData : nil
         if let v = visitor { client["visitorData"] = v }
 
         var payload: [String: Any] = ["context": ["client": client]]
@@ -112,33 +180,31 @@ final class InnerTube {
               body: [String: Any],
               profile: ClientProfile = Clients.visionOS,
               completion: @escaping (Result<JSON, Error>) -> Void) {
-        guard let req = makeRequest(endpoint: endpoint, body: body, profile: profile) else {
-            completion(.failure(InnerTubeError.parse("bad request")))
-            return
-        }
-        Http.shared.send(req) { [weak self] result in
-            switch result {
-            case .failure(let err):
-                if case HttpError.badStatus(let code) = err {
-                    completion(.failure(InnerTubeError.http(code)))
-                } else {
-                    completion(.failure(err))
+        ensureVisitor { [weak self] in
+            guard let self = self, let req = self.makeRequest(endpoint: endpoint, body: body, profile: profile) else {
+                completion(.failure(InnerTubeError.parse("bad request")))
+                return
+            }
+            Http.shared.send(req) { result in
+                switch result {
+                case .failure(let err):
+                    if case HttpError.badStatus(let code) = err {
+                        completion(.failure(InnerTubeError.http(code)))
+                    } else {
+                        completion(.failure(err))
+                    }
+                case .success(let data):
+                    let json = JSON.parse(data)
+                    if !json.exists {
+                        completion(.failure(InnerTubeError.parse("invalid JSON")))
+                        return
+                    }
+                    if let msg = json["error"]["message"].string {
+                        completion(.failure(InnerTubeError.parse(msg)))
+                        return
+                    }
+                    completion(.success(json))
                 }
-            case .success(let data):
-                let json = JSON.parse(data)
-                if !json.exists {
-                    completion(.failure(InnerTubeError.parse("invalid JSON")))
-                    return
-                }
-                if let msg = json["error"]["message"].string {
-                    completion(.failure(InnerTubeError.parse(msg)))
-                    return
-                }
-                if let vd = json["responseContext"]["visitorData"].string, let me = self, me.visitorData == nil {
-                    me.visitorData = vd
-                    UserDefaults.standard.set(vd, forKey: "visitorData")
-                }
-                completion(.success(json))
             }
         }
     }

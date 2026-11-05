@@ -252,6 +252,8 @@ struct ShortEntry {
 enum InnerTubeError: Error {
     case parse(String)
     case unplayable(String)
+    /// "Sign in to confirm you're not a bot" – retried with a fresh visitor id.
+    case botCheck(String)
     case http(Int)
     case empty
 }
@@ -261,6 +263,7 @@ extension InnerTubeError: LocalizedError {
         switch self {
         case .parse(let s): return s
         case .unplayable(let s): return s
+        case .botCheck(let s): return s
         case .http(let c): return "HTTP \(c)"
         case .empty: return "No results"
         }

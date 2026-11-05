@@ -3,7 +3,7 @@
 # usage: Tools/linux_build.sh [run ptcli args...]
 export PATH=/opt/swift/usr/bin:$PATH
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT=/tmp/ptbuild
+OUT=$HOME/ptbuild
 mkdir -p "$OUT"
 swiftc -O -swift-version 5 -o "$OUT/ptcli" "$ROOT"/PodTube/Sources/Core/*.swift "$ROOT"/Tools/ptcli/*.swift 2>&1 \
   | grep -E "error|warning: var|warning: imm|warning: init" | sort -u | head -60
