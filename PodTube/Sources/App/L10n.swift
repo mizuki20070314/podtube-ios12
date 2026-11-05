@@ -79,6 +79,7 @@ enum L10n {
         "video.live": ("ライブ", "LIVE"),
         "video.upcoming": ("公開予定", "Upcoming"),
         "video.unavailable": ("この動画は再生できません", "This video can't be played"),
+        "video.botCheck": ("YouTube が一時的に再生を制限しています。少し待って再試行してください。", "YouTube is limiting playback right now. Wait a moment and retry."),
         "video.nextUp": ("次の動画", "Up next"),
         "video.autoplay": ("自動再生", "Autoplay"),
         "video.playlists": ("再生リスト", "Playlists"),

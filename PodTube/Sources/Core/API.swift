@@ -126,10 +126,11 @@ extension InnerTube {
     /// Resolves streams for a video. HLS is preferred (AVPlayer plays it natively with adaptive quality),
     /// so when the first client has no HLS manifest the iOS client is asked too.
     func playback(videoId: String, _ done: @escaping Done<PlaybackInfo>) {
-        runPlaybackChain(videoId: videoId, retried: false, done: done)
+        runPlaybackChain(videoId: videoId, attempt: 0, done: done)
     }
 
-    private func runPlaybackChain(videoId: String, retried: Bool, done: @escaping Done<PlaybackInfo>) {
+    /// `attempt` counts bot-check retries (each one uses a fresh visitor id after a short pause).
+    private func runPlaybackChain(videoId: String, attempt: Int, done: @escaping Done<PlaybackInfo>) {
         let chain = [Clients.visionOS, Clients.ios, Clients.androidVR]
         var firstError: Error?
         var fallback: PlaybackInfo?
@@ -140,8 +141,12 @@ extension InnerTube {
                     done(.success(f))
                     return
                 }
-                if !retried, let e = firstError as? InnerTubeError, case .botCheck = e {
-                    refreshVisitor { self.runPlaybackChain(videoId: videoId, retried: true, done: done) }
+                if attempt < 2, let e = firstError as? InnerTubeError, case .botCheck = e {
+                    refreshVisitor {
+                        DispatchQueue.global().asyncAfter(deadline: .now() + 1.2) {
+                            self.runPlaybackChain(videoId: videoId, attempt: attempt + 1, done: done)
+                        }
+                    }
                     return
                 }
                 done(.failure(firstError ?? InnerTubeError.unplayable("No playable stream")))

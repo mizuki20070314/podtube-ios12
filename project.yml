@@ -31,6 +31,8 @@ targets:
       path: PodTube/Info.plist
       properties:
         CFBundleDisplayName: PodTube
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities:
           - arm64

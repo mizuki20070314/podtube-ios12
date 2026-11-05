@@ -93,6 +93,7 @@ final class WatchContentViewController: FeedViewController {
         updateHeader()
         if let merged = header.video {
             onLoaded?(merged)
+            PlayerManager.shared.updateMetadata(merged)
             Store.shared.updateHistoryVideo(merged)
         }
         var next: [VideoItem] = []

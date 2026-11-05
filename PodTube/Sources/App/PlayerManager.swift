@@ -186,7 +186,11 @@ final class PlayerManager: NSObject {
                     NotificationCenter.default.post(name: .playerItemChanged, object: nil)
                     self.startCandidate(gen)
                 case .failure(let error):
-                    self.fail(error.localizedDescription)
+                    if let e = error as? InnerTubeError, case .botCheck = e {
+                        self.fail(L10n.t("video.botCheck"))
+                    } else {
+                        self.fail(error.localizedDescription)
+                    }
                 }
             }
         }
@@ -415,6 +419,13 @@ final class PlayerManager: NSObject {
             return upNext.first(where: { $0.id != video?.id })
         }
         return nil
+    }
+
+    /// Replaces the bare item (e.g. opened from a pasted link) with the full metadata once the watch page has loaded.
+    func updateMetadata(_ v: VideoItem) {
+        guard video?.id == v.id else { return }
+        video = v
+        if player.currentItem != nil { updateNowPlaying() }
     }
 
     /// Adopts the queue returned by the watch page (playlist playback) without restarting the current video.
