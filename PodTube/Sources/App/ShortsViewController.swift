@@ -271,7 +271,7 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         PlayerManager.shared.pause()
-        if videos.isEmpty { seedFromHome() } else if !pausedByUser { player.play() }
+        if videos.isEmpty { seedFromHome() } else if !pausedByUser { playShort() }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -288,6 +288,11 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
     @objc private func searchTapped() { Router.shared.root?.openSearchScreen() }
 
     @objc private func appBackgrounded() { player.pause() }
+
+    private func playShort() {
+        PlayerManager.shared.activateSession()
+        player.play()
+    }
 
     // MARK: Data
 
@@ -399,14 +404,14 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
                 guard let item = item, self.current == index, gen == self.generation else { return }
                 self.endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in
                     self?.player.seek(to: .zero)
-                    self?.player.play()
+                    self?.playShort()
                 }
                 self.player.replaceCurrentItem(with: item)
                 if let cell = self.collection.cellForItem(at: IndexPath(item: index, section: 0)) as? ShortCell {
                     cell.attach(player: self.player)
                     cell.setLoading(false)
                 }
-                self.player.play()
+                self.playShort()
                 self.waitForFirstFrame(index: index, gen: gen)
             }
         }
@@ -507,7 +512,7 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
                 self.pausedByUser = true
                 cell.setPaused(true)
             } else {
-                self.player.play()
+                self.playShort()
                 self.pausedByUser = false
                 cell.setPaused(false)
             }

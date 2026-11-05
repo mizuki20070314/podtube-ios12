@@ -69,7 +69,15 @@ final class PlayerManager: NSObject {
     private func configureAudioSession() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playback, mode: .moviePlayback, options: [])
-        try? s.setActive(true, options: [])
+    }
+
+    /// The session is only activated while something plays, so other apps' music is not interrupted at launch.
+    func activateSession() {
+        try? AVAudioSession.sharedInstance().setActive(true, options: [])
+    }
+
+    func deactivateSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
     private func installObservers() {
@@ -365,8 +373,13 @@ final class PlayerManager: NSObject {
     // MARK: Transport
 
     func play() {
+        activateSession()
         wantsPlay = true
-        if state == .ended { player.seek(to: .zero) }
+        if state == .ended {
+            // leave the "ended" state first, otherwise later playback updates are ignored
+            state = .paused
+            player.seek(to: .zero)
+        }
         player.play()
         player.rate = Float(speed)
     }
@@ -445,6 +458,7 @@ final class PlayerManager: NSObject {
         queueIndex = -1
         state = .idle
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        deactivateSession()
         NotificationCenter.default.post(name: .playerItemChanged, object: nil)
     }
 
