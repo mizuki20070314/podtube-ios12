@@ -189,6 +189,15 @@ case "chapters":
         for c in list.prefix(12) { print("  \(Format.duration(c.start))  \(c.title)") }
     }
 
+case "parsefile":
+    // parsefile <json file>: run the generic list parser on a saved response (fixtures from other clients)
+    guard args.count > 1, let data = FileManager.default.contents(atPath: args[1]) else {
+        print("usage: parsefile <file>")
+        exit(1)
+    }
+    let page = Parse.feed(JSON.parse(data))
+    showPage(page, limit: 8)
+
 case "link":
     for a in args.dropFirst() { print("\(a)  ->  \(String(describing: LinkParser.parse(a)))") }
     if args.count > 1, case .some(.resolve(let u)) = LinkParser.parse(args[1]) {

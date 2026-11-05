@@ -63,7 +63,7 @@ final class SearchViewController: UIViewController, HidesNavigationBar, UITextFi
         field.textColor = Theme.text
         field.keyboardAppearance = Theme.isDark ? .dark : .light
         field.attributedPlaceholder = NSAttributedString(string: L10n.t("search.placeholder"),
-                                                         attributes: [.foregroundColor: Theme.secondaryText])
+                                                         attributes: [.foregroundColor: Theme.secondaryText, .font: Theme.font(14)])
         divider.backgroundColor = Theme.divider
         table.reloadData()
     }

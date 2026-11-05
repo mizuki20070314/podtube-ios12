@@ -13,7 +13,8 @@ enum Parse {
 
     /// Smallest thumbnail that is at least `minWidth` wide, else the largest one.
     static func thumb(_ node: JSON, minWidth: Int) -> String {
-        let list = node["thumbnails"].array
+        var list = node["thumbnails"].array
+        if list.isEmpty { list = node["sources"].array }   // view-model style images
         if list.isEmpty { return "" }
         var best: String?
         var bestWidth = Int.max
@@ -72,6 +73,69 @@ enum Parse {
             }
         }
         if v.isLive || v.isUpcoming { v.duration = "" }
+        return v
+    }
+
+    /// `lockupViewModel` (the newer web layout): videos and playlists.
+    static func lockup(_ r: JSON) -> FeedItem? {
+        let id = r["contentId"].stringValue
+        if id.isEmpty { return nil }
+        let type = r["contentType"].stringValue
+        let meta = r["metadata"]["lockupMetadataViewModel"]
+        let title = meta["title"]["content"].stringValue
+        let thumbNode = r["contentImage"]["thumbnailViewModel"]
+
+        if type == "LOCKUP_CONTENT_TYPE_PLAYLIST" || type == "LOCKUP_CONTENT_TYPE_PODCAST" {
+            var p = PlaylistItem(id: id)
+            p.title = title
+            var t = thumb(thumbNode["image"], minWidth: 320)
+            if t.isEmpty {
+                t = thumb(r["contentImage"]["collectionThumbnailViewModel"]["primaryThumbnail"]["thumbnailViewModel"]["image"], minWidth: 320)
+            }
+            p.thumbnail = t
+            let rows = meta["metadata"]["contentMetadataViewModel"]["metadataRows"].array
+            p.channelName = rows.first?["metadataParts"][0]["text"]["content"].stringValue ?? ""
+            return .playlist(p)
+        }
+        if type != "LOCKUP_CONTENT_TYPE_VIDEO" && !type.isEmpty { return nil }
+
+        var v = VideoItem(id: id)
+        v.title = title
+        v.thumbnail = thumb(thumbNode["image"], minWidth: 480)
+        for o in thumbNode["overlays"].array {
+            for b in o["thumbnailBottomOverlayViewModel"]["badges"].array {
+                let badge = b["thumbnailBadgeViewModel"]
+                let text = badge["text"].stringValue
+                let style = badge["badgeStyle"].stringValue
+                if style.contains("LIVE") { v.isLive = true } else if text.contains(":") && v.duration.isEmpty { v.duration = text }
+            }
+        }
+        let avatarNode = meta["image"]["decoratedAvatarViewModel"]
+        v.channelAvatar = thumb(avatarNode["avatar"]["avatarViewModel"]["image"], minWidth: 48)
+        v.channelId = avatarNode["rendererContext"]["commandContext"]["onTap"]["innertubeCommand"]["browseEndpoint"]["browseId"].stringValue
+        let rows = meta["metadata"]["contentMetadataViewModel"]["metadataRows"].array
+        if rows.count >= 2 {
+            v.channelName = rows[0]["metadataParts"][0]["text"]["content"].stringValue
+            v.views = rows[1]["metadataParts"][0]["text"]["content"].stringValue
+            v.published = rows[1]["metadataParts"][1]["text"]["content"].stringValue
+        } else if let only = rows.first {
+            v.views = only["metadataParts"][0]["text"]["content"].stringValue
+            v.published = only["metadataParts"][1]["text"]["content"].stringValue
+        }
+        return .video(v)
+    }
+
+    /// `shortsLockupViewModel`
+    static func shortLockup(_ r: JSON) -> VideoItem? {
+        var id = r["onTap"]["innertubeCommand"]["reelWatchEndpoint"]["videoId"].stringValue
+        if id.isEmpty { id = r["entityId"].stringValue.replacingOccurrences(of: "shorts-shelf-item-", with: "") }
+        if id.isEmpty { return nil }
+        var v = VideoItem(id: id)
+        v.isShort = true
+        v.title = r["overlayMetadata"]["primaryText"]["content"].stringValue
+        v.views = r["overlayMetadata"]["secondaryText"]["content"].stringValue
+        v.thumbnail = thumb(r["onTap"]["innertubeCommand"]["reelWatchEndpoint"]["thumbnail"], minWidth: 300)
+        if v.title.isEmpty { v.title = r["accessibilityText"].stringValue }
         return v
     }
 
@@ -139,7 +203,33 @@ enum Parse {
             }
             guard let d = node as? [String: Any] else { return }
 
-            for key in ["compactVideoRenderer", "videoWithContextRenderer", "playlistVideoRenderer",
+            if let r = d["lockupViewModel"] {
+                if let item = Parse.lockup(JSON(r)) {
+                    switch item {
+                    case .video(let v):
+                        if !seen.contains(v.id) {
+                            seen.insert(v.id)
+                            add(.video(v))
+                        }
+                    case .playlist(let p):
+                        if !seen.contains("p:" + p.id) {
+                            seen.insert("p:" + p.id)
+                            add(.playlist(p))
+                        }
+                    default:
+                        break
+                    }
+                }
+                return
+            }
+            if let r = d["shortsLockupViewModel"] {
+                if let v = Parse.shortLockup(JSON(r)), !seen.contains(v.id) {
+                    seen.insert(v.id)
+                    add(.video(v))
+                }
+                return
+            }
+            for key in ["compactVideoRenderer", "videoWithContextRenderer", "playlistVideoRenderer", "videoRenderer",
                         "gridVideoRenderer", "reelItemRenderer", "playlistPanelVideoRenderer"] {
                 if let r = d[key] {
                     if let v = Parse.video(JSON(r)), !seen.contains(v.id) {

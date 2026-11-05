@@ -104,7 +104,7 @@ enum L10n {
         "player.autoTranslate": ("自動翻訳", "Auto-translate"),
 
         // search
-        "search.placeholder": ("検索、または YouTube のリンクを貼り付け", "Search or paste a YouTube link"),
+        "search.placeholder": ("検索またはリンクを貼り付け", "Search or paste a link"),
         "search.history": ("検索履歴", "Search history"),
         "search.clearHistory": ("検索履歴を消去", "Clear search history"),
         "search.filters": ("検索フィルタ", "Search filters"),
