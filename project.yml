@@ -1,0 +1,59 @@
+name: PodTube
+options:
+  bundleIdPrefix: com.podtube
+  deploymentTarget:
+    iOS: "12.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_BITCODE: "NO"
+    ONLY_ACTIVE_ARCH: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    SWIFT_OPTIMIZATION_LEVEL: "-O"
+    GCC_OPTIMIZATION_LEVEL: "s"
+
+targets:
+  PodTube:
+    type: application
+    platform: iOS
+    deploymentTarget: "12.0"
+    sources:
+      - path: PodTube/Sources
+      - path: PodTube/Resources
+    info:
+      path: PodTube/Info.plist
+      properties:
+        CFBundleDisplayName: PodTube
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UIBackgroundModes:
+          - audio
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIViewControllerBasedStatusBarAppearance: true
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleLocalizations:
+          - ja
+          - en
+        CFBundleDevelopmentRegion: ja
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.podtube.ios12
+        PRODUCT_NAME: PodTube
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+        # iOS < 12.2 has no Swift runtime in the OS: always bundle the Swift libs so 12.0/12.1 work too.
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: "YES"
