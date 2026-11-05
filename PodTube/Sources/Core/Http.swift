@@ -4,14 +4,14 @@ import FoundationNetworking
 #endif
 
 enum HttpError: Error {
-    case badStatus(Int)
+    case badStatus(Int, Data?)
     case noData
 }
 
 extension HttpError: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case .badStatus(let code): return "HTTP \(code)"
+        case .badStatus(let code, _): return "HTTP \(code)"
         case .noData: return "No data"
         }
     }
@@ -43,7 +43,7 @@ final class Http {
                 return
             }
             if !(200..<300).contains(http.statusCode) {
-                completion(.failure(HttpError.badStatus(http.statusCode)))
+                completion(.failure(HttpError.badStatus(http.statusCode, data)))
                 return
             }
             completion(.success(data))

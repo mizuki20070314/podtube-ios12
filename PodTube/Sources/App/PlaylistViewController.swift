@@ -126,21 +126,40 @@ final class PlaylistViewController: FeedViewController {
         view.setNeedsLayout()
     }
 
+    private func adopt(_ info: PlaylistInfo) {
+        self.info = info
+        title = info.title
+        var parts: [String] = []
+        if !info.owner.isEmpty { parts.append(info.owner) }
+        parts.append(contentsOf: info.stats)
+        header.configure(title: info.title, meta: parts.joined(separator: " · "))
+        updateHeader()
+    }
+
     override func fetchFirstPage(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
+        // Signed in: the TV client can also read private lists (Watch later, Liked videos, own playlists).
+        if Account.shared.isSignedIn {
+            continuationEndpoint = "tv"
+            InnerTube.shared.accountPlaylist(id: playlistId) { [weak self] result in
+                if case .success(let info) = result, !info.firstPage.items.isEmpty {
+                    DispatchQueue.main.async { self?.adopt(info) }
+                    done(.success(info.firstPage))
+                    return
+                }
+                DispatchQueue.main.async { self?.continuationEndpoint = "browse" }
+                self?.fetchAnonymously(done)
+            }
+            return
+        }
         continuationEndpoint = "browse"
+        fetchAnonymously(done)
+    }
+
+    private func fetchAnonymously(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
         InnerTube.shared.playlist(id: playlistId) { [weak self] result in
             switch result {
             case .success(let info):
-                DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    self.info = info
-                    self.title = info.title
-                    var parts: [String] = []
-                    if !info.owner.isEmpty { parts.append(info.owner) }
-                    parts.append(contentsOf: info.stats)
-                    self.header.configure(title: info.title, meta: parts.joined(separator: " · "))
-                    self.updateHeader()
-                }
+                DispatchQueue.main.async { self?.adopt(info) }
                 done(.success(info.firstPage))
             case .failure(let e):
                 done(.failure(e))
@@ -148,8 +167,11 @@ final class PlaylistViewController: FeedViewController {
         }
     }
 
+    /// Lists read through the account carry no playlist id for the player: the list itself is the queue.
+    private var queueId: String? { return continuationEndpoint == "tv" ? nil : playlistId }
+
     override func play(_ video: VideoItem) {
-        Router.shared.play(video, queue: allVideos, playlistId: playlistId)
+        Router.shared.play(video, queue: allVideos, playlistId: queueId)
     }
 
     @objc private func shareTapped() {
@@ -160,6 +182,6 @@ final class PlaylistViewController: FeedViewController {
         var list = allVideos
         if list.isEmpty { return }
         if shuffle { list.shuffle() }
-        Router.shared.play(list[0], queue: list, playlistId: shuffle ? nil : playlistId)
+        Router.shared.play(list[0], queue: list, playlistId: shuffle ? nil : queueId)
     }
 }

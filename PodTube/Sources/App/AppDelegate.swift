@@ -9,6 +9,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         DebugRoutes.applyEarlyArguments()
         Settings.applyToClient()
         ClientOverrides.refresh()
+        Account.shared.start()
+        if DebugRoutes.flag("-pt-demo-account") { FakeAccount.enable() }
         _ = PlayerManager.shared
         _ = DownloadManager.shared
 
@@ -50,12 +52,16 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 /// Launch arguments used by the CI smoke test to drive the UI and take screenshots.
-///   -pt-theme light|dark   -pt-region JP|US   -route "watch:ID;wait:6;comments"
+///   -pt-theme light|dark   -pt-region JP|US   -route "watch:ID;wait:6;comments"   -pt-demo-account
 enum DebugRoutes {
     static func value(for key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: key), i + 1 < args.count else { return nil }
         return args[i + 1]
+    }
+
+    static func flag(_ key: String) -> Bool {
+        return ProcessInfo.processInfo.arguments.contains(key)
     }
 
     static func applyEarlyArguments() {
@@ -108,6 +114,24 @@ enum DebugRoutes {
             v.title = "Sample"
             v.channelId = "UCuAXFkgsw1L7xaCfnd5JJOw"
             Router.shared.showVideoMenu(v)
+        case "savesheet":
+            var v = VideoItem(id: "dQw4w9WgXcQ")
+            v.title = "Sample"
+            Router.shared.showPlaylistPicker(for: v)
+        case "signin":
+            // fixed code, no network: the real one is requested from Google when the screen opens normally
+            let demo = DeviceCode(userCode: "ABC-DEF-GHIJ", verificationURL: "https://www.google.com/device",
+                                  deviceCode: "demo", interval: 5, expiresAt: Date(timeIntervalSinceNow: 1800))
+            Router.shared.push(SignInViewController(demoCode: demo))
+        case "acctlist":
+            switch arg {
+            case "watchLater": Router.shared.push(AccountListViewController(kind: .watchLater))
+            case "liked": Router.shared.push(AccountListViewController(kind: .liked))
+            case "playlists": Router.shared.push(AccountListViewController(kind: .playlists))
+            default: Router.shared.push(AccountListViewController(kind: .history))
+            }
+        case "accountplaylist":
+            Router.shared.openPlaylist(id: arg, title: nil)
         default: break
         }
     }

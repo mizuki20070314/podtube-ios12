@@ -145,6 +145,19 @@ final class Store {
         changed()
     }
 
+    /// Adds the channels that are not stored yet (mirrors the account's subscriptions). Silent when nothing is new.
+    func mergeSubscriptions(_ list: [ChannelItem]) {
+        var added = false
+        for c in list where !isSubscribed(c.id) {
+            subscriptions.append(c)
+            added = true
+        }
+        if added {
+            save(subscriptions, as: "subscriptions.json")
+            changed()
+        }
+    }
+
     // MARK: Watch later / liked
 
     func isWatchLater(_ id: String) -> Bool { return watchLater.contains { $0.id == id } }
@@ -160,6 +173,10 @@ final class Store {
     }
 
     func isLiked(_ id: String) -> Bool { return liked.contains { $0.id == id } }
+
+    func setLiked(_ video: VideoItem, _ on: Bool) {
+        if isLiked(video.id) != on { toggleLike(video) }
+    }
 
     func toggleLike(_ video: VideoItem) {
         if let i = liked.firstIndex(where: { $0.id == video.id }) {

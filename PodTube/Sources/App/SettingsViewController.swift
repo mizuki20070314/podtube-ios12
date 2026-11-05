@@ -33,6 +33,8 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         build()
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .themeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .settingsChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .accountChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .accountProfileChanged, object: nil)
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -66,10 +68,28 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
         return SettingsViewController.regions.first(where: { $0.code == Settings.contentRegion })?.name ?? Settings.contentRegion
     }
 
+    private func accountRows() -> [Row] {
+        if Account.shared.isSignedIn {
+            let p = Account.shared.profile
+            return [
+                .info(p?.name ?? L10n.t("account.signedIn"), p?.handle ?? ""),
+                .button(L10n.t("account.signOut"), true, { Account.shared.signOut() }),
+                .info("", L10n.t("account.signedInNote"))
+            ]
+        }
+        return [
+            .button(L10n.t("account.signIn"), false, { [weak self] in
+                self?.navigationController?.pushViewController(SignInViewController(), animated: true)
+            }),
+            .info("", L10n.t("account.signedOutNote"))
+        ]
+    }
+
     private func build() {
         let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
             + " (" + (Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1") + ")"
         sections = [
+            Section(title: L10n.t("settings.account"), rows: accountRows()),
             Section(title: L10n.t("settings.general"), rows: [
                 .choice(L10n.t("settings.appearance"), { Theme.isDark ? L10n.t("settings.dark") : L10n.t("settings.light") }, { [weak self] in self?.pickTheme() }),
                 .choice(L10n.t("settings.language"), { [weak self] in self?.languageText() ?? "" }, { [weak self] in self?.pickLanguage() }),

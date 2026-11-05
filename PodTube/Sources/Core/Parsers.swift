@@ -181,6 +181,148 @@ enum Parse {
         return p
     }
 
+    // MARK: - TV client (tileRenderer) – used for everything that needs the signed-in account
+
+    /// Text of the `lineRenderer` rows of a tile / playlist header, separators and badges dropped.
+    private static func lineRows(_ lines: [JSON]) -> [[String]] {
+        var rows: [[String]] = []
+        for line in lines {
+            var row: [String] = []
+            for it in line["lineRenderer"]["items"].array {
+                let li = it["lineItemRenderer"]
+                if li["badge"].exists { continue }
+                let t = li["text"].textValue.trimmingCharacters(in: .whitespaces)
+                if t.isEmpty || t == "•" || t == "·" { continue }
+                row.append(t)
+            }
+            rows.append(row)
+        }
+        return rows
+    }
+
+    static func tile(_ r: JSON) -> FeedItem? {
+        let type = r["contentType"].stringValue
+        let id = r["contentId"].stringValue
+        if id.isEmpty || type.isEmpty { return nil }
+        let meta = r["metadata"]["tileMetadataRenderer"]
+        let header = r["header"]["tileHeaderRenderer"]
+        let title = meta["title"].textValue
+        let rows = lineRows(meta["lines"].array)
+
+        switch type {
+        case "TILE_CONTENT_TYPE_VIDEO", "TILE_CONTENT_TYPE_SHORTS":
+            var v = VideoItem(id: id)
+            v.title = title
+            v.isShort = type == "TILE_CONTENT_TYPE_SHORTS"
+            v.thumbnail = thumb(header["thumbnail"], minWidth: 480)
+            if let first = rows.first { v.channelName = first.joined(separator: " ") }
+            if rows.count > 1 {
+                v.views = rows[1].first ?? ""
+                if rows[1].count > 1 { v.published = rows[1][1] }
+            }
+            for o in header["thumbnailOverlays"].array {
+                let ts = o["thumbnailOverlayTimeStatusRenderer"]
+                if ts.exists {
+                    let style = ts["style"].stringValue
+                    if style == "LIVE" { v.isLive = true }
+                    if style == "UPCOMING" { v.isUpcoming = true }
+                    if style == "SHORTS" { v.isShort = true }
+                    if v.duration.isEmpty && (style == "DEFAULT" || style == "SHORTS") { v.duration = ts["text"].textValue }
+                }
+                if let pct = o["thumbnailOverlayResumePlaybackRenderer"]["percentDurationWatched"].int { v.watchedPercent = pct }
+            }
+            if v.isLive || v.isUpcoming { v.duration = "" }
+            return .video(v)
+        case "TILE_CONTENT_TYPE_PLAYLIST":
+            var p = PlaylistItem(id: id)
+            p.title = title
+            p.thumbnail = thumb(header["thumbnail"], minWidth: 320)
+            if let first = rows.first { p.channelName = first.joined(separator: " · ") }
+            for o in header["thumbnailOverlays"].array {
+                let t = o["thumbnailOverlayTimeStatusRenderer"]["text"].textValue
+                if !t.isEmpty { p.videoCount = t }
+            }
+            return .playlist(p)
+        case "TILE_CONTENT_TYPE_CHANNEL":
+            // library shortcuts ("FEhistory", …) are typed as channels too
+            if !id.hasPrefix("UC") { return nil }
+            var c = ChannelItem(id: id)
+            c.name = title
+            c.avatar = thumb(header["thumbnail"], minWidth: 88)
+            for row in rows {
+                for s in row {
+                    if s.hasPrefix("@") { c.handle = s } else if c.subscribers.isEmpty { c.subscribers = s }
+                }
+            }
+            return .channel(c)
+        default:
+            return nil
+        }
+    }
+
+    /// Channel id inside the url-encoded base64 `params` of a subscriptions tab.
+    static func channelId(fromParams params: String) -> String? {
+        var s = params.removingPercentEncoding ?? params
+        s = s.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while s.count % 4 != 0 { s += "=" }
+        guard let data = Data(base64Encoded: s) else { return nil }
+        let text = String(decoding: data, as: UTF8.self)
+        guard let re = try? NSRegularExpression(pattern: "UC[0-9A-Za-z_-]{22}", options: []) else { return nil }
+        let ns = text as NSString
+        guard let m = re.firstMatch(in: text, options: [], range: NSRange(location: 0, length: ns.length)) else { return nil }
+        return ns.substring(with: m.range)
+    }
+
+    /// The left-hand channel list of the TV subscriptions page (most recently active channels first).
+    static func subscriptionTabs(_ root: JSON) -> [ChannelItem] {
+        var out: [ChannelItem] = []
+        var seen = Set<String>()
+        for t in root.findAll("tabRenderer") {
+            if !t["thumbnail"].exists { continue }
+            let params = t["endpoint"]["browseEndpoint"]["params"].stringValue
+            guard let id = channelId(fromParams: params), !seen.contains(id) else { continue }
+            seen.insert(id)
+            var c = ChannelItem(id: id)
+            c.name = t["title"].textValue
+            c.avatar = thumb(t["thumbnail"], minWidth: 88)
+            out.append(c)
+        }
+        return out
+    }
+
+    static func accountProfile(_ root: JSON) -> AccountProfile? {
+        let items = root.findAll("accountItem")
+        let item = items.first(where: { $0["isSelected"].bool == true }) ?? items.first
+        guard let it = item else { return nil }
+        let name = it["accountName"].textValue
+        if name.isEmpty { return nil }
+        return AccountProfile(name: name, handle: it["channelHandle"].textValue, avatar: thumb(it["accountPhoto"], minWidth: 88))
+    }
+
+    /// A playlist page of the TV client: title / owner / counts live in `entityMetadataRenderer`.
+    static func accountPlaylistInfo(_ root: JSON, id: String) -> PlaylistInfo {
+        var info = PlaylistInfo(id: id)
+        if let e = root.findFirst("entityMetadataRenderer") {
+            info.title = e["title"].textValue
+            let texts = lineRows(e["bylines"].array).flatMap { $0 }
+            if let owner = texts.first { info.owner = owner }
+            info.stats = Array(texts.dropFirst())
+        }
+        info.firstPage = feed(root)
+        info.thumbnail = info.firstPage.videos.first?.thumbnail ?? ""
+        return info
+    }
+
+    static func accountWatchState(_ root: JSON) -> AccountWatchState {
+        var s = AccountWatchState()
+        if let like = root.findFirst("likeButtonRenderer") { s.likeStatus = like["likeStatus"].stringValue }
+        if let sub = root.findFirst("subscribeButtonRenderer") {
+            s.subscribed = sub["subscribed"].bool
+            s.channelId = sub["channelId"].stringValue
+        }
+        return s
+    }
+
     // MARK: - Feeds
 
     private final class FeedWalker {
@@ -189,6 +331,8 @@ enum Parse {
         var tokens: [String] = []
         var seen = Set<String>()
         var currentSection: Int?
+        /// > 0 while inside a shelf: horizontal "more in this shelf" tokens must not be used for paging the list.
+        var shelfDepth = 0
 
         func add(_ item: FeedItem) {
             items.append(item)
@@ -203,6 +347,31 @@ enum Parse {
             }
             guard let d = node as? [String: Any] else { return }
 
+            if d["adSlotRenderer"] != nil || d["adBreakServiceRenderer"] != nil { return }
+            if let r = d["tileRenderer"] {
+                if let item = Parse.tile(JSON(r)) {
+                    switch item {
+                    case .video(let v):
+                        if !seen.contains(v.id) {
+                            seen.insert(v.id)
+                            add(.video(v))
+                        }
+                    case .channel(let c):
+                        if !seen.contains("c:" + c.id) {
+                            seen.insert("c:" + c.id)
+                            add(.channel(c))
+                        }
+                    case .playlist(let p):
+                        if !seen.contains("p:" + p.id) {
+                            seen.insert("p:" + p.id)
+                            add(.playlist(p))
+                        }
+                    default:
+                        break
+                    }
+                }
+                return
+            }
             if let r = d["lockupViewModel"] {
                 if let item = Parse.lockup(JSON(r)) {
                     switch item {
@@ -259,17 +428,22 @@ enum Parse {
             }
             if let shelf = d["shelfRenderer"] {
                 let s = JSON(shelf)
-                let title = s["title"].textValue
+                var title = s["title"].textValue
+                if title.isEmpty {
+                    title = s["headerRenderer"]["shelfHeaderRenderer"]["avatarLockup"]["avatarLockupRenderer"]["title"].textValue
+                }
                 sections.append(FeedSection(title: title, items: []))
                 let saved = currentSection
                 currentSection = sections.count - 1
+                shelfDepth += 1
                 visit(s["content"].raw, depth: depth + 1)
+                shelfDepth -= 1
                 currentSection = saved
                 if let last = sections.last, last.items.isEmpty { sections.removeLast() }
                 return
             }
             if let n = d["nextContinuationData"] as? [String: Any], let t = n["continuation"] as? String {
-                tokens.append(t)
+                if shelfDepth == 0 { tokens.append(t) }
                 return
             }
             if let c = d["continuationItemRenderer"] {
@@ -509,6 +683,7 @@ enum Parse {
         }
 
         if let hls = sd["hlsManifestUrl"].string { info.hlsURL = URL(string: hls) }
+        if let stats = root["playbackTracking"]["videostatsPlaybackUrl"]["baseUrl"].string { info.statsURL = URL(string: stats) }
 
         // Muxed progressive (rarely present for this client, kept as a fallback).
         var bestMuxed = 0

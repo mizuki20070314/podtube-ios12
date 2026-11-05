@@ -357,14 +357,35 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
 
     @objc private func likeTapped() {
         guard let v = video else { return }
-        if disliked { disliked = false }
-        Store.shared.toggleLike(v)
-        if Store.shared.isLiked(v.id) { Toast.show(L10n.t("library.liked")) }
+        let wasLiked = Store.shared.isLiked(v.id)
+        disliked = false
+        Account.shared.setLike(v, wasLiked ? .none : .like)
+        if !wasLiked { Toast.show(L10n.t("library.liked")) }
+        refreshActions()
     }
 
     @objc private func dislikeTapped() {
+        guard let v = video else { return }
         disliked = !disliked
-        if disliked, let v = video, Store.shared.isLiked(v.id) { Store.shared.toggleLike(v) }
+        if Account.shared.isSignedIn {
+            Account.shared.setLike(v, disliked ? .dislike : .none)
+        } else if disliked, Store.shared.isLiked(v.id) {
+            Store.shared.toggleLike(v)
+        }
+        refreshActions()
+    }
+
+    /// What the signed-in account says about this video: exact like / dislike and subscription state.
+    func apply(account s: AccountWatchState) {
+        guard let v = video else { return }
+        if !s.likeStatus.isEmpty {
+            disliked = s.likeStatus == "DISLIKE"
+            Store.shared.setLiked(v, s.likeStatus == "LIKE")
+        }
+        if let c = channel, let on = s.subscribed, s.channelId.isEmpty || s.channelId == c.id {
+            if on { Store.shared.subscribe(c) } else { Store.shared.unsubscribe(c.id) }
+            subscribeButton.setSubscribed(on)
+        }
         refreshActions()
     }
 
@@ -402,7 +423,7 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
 
     @objc private func subscribeTapped() {
         guard let c = channel else { return }
-        if Store.shared.isSubscribed(c.id) { Store.shared.unsubscribe(c.id) } else { Store.shared.subscribe(c) }
+        Account.shared.toggleSubscribe(c)
         subscribeButton.setSubscribed(Store.shared.isSubscribed(c.id))
     }
 

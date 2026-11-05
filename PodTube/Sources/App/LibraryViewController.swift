@@ -269,7 +269,11 @@ final class HistoryCardCell: UICollectionViewCell {
         titleLabel.textColor = Theme.text
         metaLabel.text = v.channelName
         metaLabel.textColor = Theme.secondaryText
-        fraction = CGFloat(Store.shared.progress(for: v.id) ?? 0)
+        if let pct = v.watchedPercent {
+            fraction = CGFloat(pct) / 100
+        } else {
+            fraction = CGFloat(Store.shared.progress(for: v.id) ?? 0)
+        }
         progress.isHidden = fraction <= 0.01
         setNeedsLayout()
     }
@@ -349,6 +353,12 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
     }
 
     private var rows: [Row] = []
+    private let accountHeader = AccountHeaderView()
+    /// Recent history of the signed-in account, shown as the first shelf (kept between visits to avoid flicker).
+    private var accountHistory: [VideoItem] = []
+    private var accountHistoryLoaded = Date.distantPast
+
+    private var signedIn: Bool { return Account.shared.isSignedIn }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -364,10 +374,15 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
         table.register(VideoShelfCell.self, forCellReuseIdentifier: VideoShelfCell.reuseId)
         table.register(LibraryRowCell.self, forCellReuseIdentifier: LibraryRowCell.reuseId)
         if #available(iOS 11.0, *) { table.contentInsetAdjustmentBehavior = .never }
+        accountHeader.frame = CGRect(x: 0, y: 0, width: 320, height: AccountHeaderView.height)
+        accountHeader.addTarget(self, action: #selector(accountTapped), for: .touchUpInside)
+        table.tableHeaderView = accountHeader
         view.addSubview(table)
         view.addSubview(bar)
         bar.addSubviews([titleLabel, searchButton, settingsButton, divider])
         applyTheme()
+        NotificationCenter.default.addObserver(self, selector: #selector(accountChanged), name: .accountChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .accountProfileChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .storeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .downloadsChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)
@@ -389,8 +404,45 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
     }
 
     @objc private func refresh() {
+        accountHeader.refresh()
         rebuildRows()
         table.reloadData()
+    }
+
+    @objc private func accountChanged() {
+        accountHistory = []
+        accountHistoryLoaded = .distantPast
+        refresh()
+        loadAccountHistory()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        loadAccountHistory()
+    }
+
+    private func loadAccountHistory() {
+        guard signedIn, Date().timeIntervalSince(accountHistoryLoaded) > 120 else { return }
+        accountHistoryLoaded = Date()
+        InnerTube.shared.accountBrowse("FEhistory") { [weak self] r in
+            guard case .success(let page) = r else { return }
+            DispatchQueue.main.async {
+                guard let self = self, self.signedIn else { return }
+                self.accountHistory = Array(page.videos.prefix(12))
+                self.table.reloadData()
+            }
+        }
+    }
+
+    @objc private func accountTapped() {
+        if signedIn {
+            let name = Account.shared.profile?.name ?? L10n.t("account.signedIn")
+            SheetView.show(title: name, actions: [
+                SheetAction(title: L10n.t("account.signOut"), icon: "logout", destructive: true) { Account.shared.signOut() }
+            ])
+        } else {
+            Router.shared.push(SignInViewController())
+        }
     }
 
     @objc private func miniChanged() {
@@ -401,7 +453,37 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
 
     func scrollToTop() { table.setContentOffset(.zero, animated: true) }
 
+    /// Same entries as below, but backed by the signed-in account instead of the device.
+    private func accountRows() -> [Row] {
+        let dm = DownloadManager.shared
+        let downloads = dm.records.count + dm.pending.count
+        return [
+            Row(icon: "history", title: L10n.t("library.history"), count: nil) {
+                Router.shared.push(AccountListViewController(kind: .history))
+            },
+            Row(icon: "file_download", title: L10n.t("library.downloads"), count: downloads == 0 ? nil : "\(downloads)") {
+                Router.shared.push(DownloadsViewController())
+            },
+            Row(icon: "playlist_play", title: L10n.t("library.playlists"), count: nil) {
+                Router.shared.push(AccountListViewController(kind: .playlists))
+            },
+            Row(icon: "watch_later_outline", title: L10n.t("library.watchLater"), count: nil) {
+                Router.shared.push(AccountListViewController(kind: .watchLater))
+            },
+            Row(icon: "thumb_up_outline", title: L10n.t("library.liked"), count: nil) {
+                Router.shared.push(AccountListViewController(kind: .liked))
+            },
+            Row(icon: "settings_outline", title: L10n.t("library.settings"), count: nil) {
+                Router.shared.openSettings()
+            }
+        ]
+    }
+
     private func rebuildRows() {
+        if signedIn {
+            rows = accountRows()
+            return
+        }
         let s = Store.shared
         rows = [
             Row(icon: "history", title: L10n.t("library.history"), count: s.history.isEmpty ? nil : "\(s.history.count)") {
@@ -438,6 +520,10 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
         searchButton.frame = CGRect(x: view.bounds.width - 96, y: top + 6, width: 44, height: 44)
         divider.frame = CGRect(x: 0, y: h - 0.5, width: view.bounds.width, height: 0.5)
         table.frame = CGRect(x: 0, y: h, width: view.bounds.width, height: view.bounds.height - h)
+        if accountHeader.frame.width != view.bounds.width {
+            accountHeader.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: AccountHeaderView.height)
+            table.tableHeaderView = accountHeader
+        }
     }
 
     @objc private func searchTapped() { Router.shared.root?.openSearchScreen() }
@@ -445,7 +531,12 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
 
     // MARK: Table
 
-    private var hasHistoryShelf: Bool { return !Store.shared.history.isEmpty }
+    private var shelfVideos: [VideoItem] {
+        if signedIn { return accountHistory }
+        return Array(Store.shared.history.prefix(12)).map { $0.video }
+    }
+
+    private var hasHistoryShelf: Bool { return !shelfVideos.isEmpty }
 
     func numberOfSections(in tableView: UITableView) -> Int { return 2 }
 
@@ -461,10 +552,15 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if indexPath.section == 0 {
             let cell = tableView.dequeueReusableCell(withIdentifier: VideoShelfCell.reuseId, for: indexPath) as! VideoShelfCell
-            let vids = Array(Store.shared.history.prefix(12)).map { $0.video }
-            cell.configure(title: L10n.t("library.history"), actionTitle: L10n.t("library.viewAll"), videos: vids)
+            cell.configure(title: L10n.t("library.history"), actionTitle: L10n.t("library.viewAll"), videos: shelfVideos)
             cell.onSelect = { v in Router.shared.play(v) }
-            cell.onAction = { Router.shared.push(StoredListViewController(kind: .history)) }
+            cell.onAction = { [weak self] in
+                if self?.signedIn == true {
+                    Router.shared.push(AccountListViewController(kind: .history))
+                } else {
+                    Router.shared.push(StoredListViewController(kind: .history))
+                }
+            }
             return cell
         }
         let cell = tableView.dequeueReusableCell(withIdentifier: LibraryRowCell.reuseId, for: indexPath) as! LibraryRowCell

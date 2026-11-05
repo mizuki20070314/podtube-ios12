@@ -8,7 +8,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
 
     private(set) var items: [FeedItem] = []
     private(set) var continuation: String?
-    /// Endpoint that produced the continuation tokens ("browse", "search" or "next").
+    /// Endpoint that produced the continuation tokens ("browse", "search", "next", or "tv" for the signed-in account).
     var continuationEndpoint = "browse"
     private var seen = Set<String>()
     private var loadingMore = false
@@ -208,11 +208,21 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         continuation = page.continuation
     }
 
+    /// Drops a video from the list (e.g. after it was removed from the account's Watch later list).
+    func removeVideo(id: String) {
+        items.removeAll {
+            if case .video(let v) = $0 { return v.id == id }
+            return false
+        }
+        seen.remove(id)
+        tableView.reloadData()
+    }
+
     func loadMore() {
         guard let token = continuation, !loadingMore else { return }
         loadingMore = true
         let gen = generation
-        InnerTube.shared.continuation(token, endpoint: continuationEndpoint) { [weak self] result in
+        let handle: Done<FeedPage> = { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self, gen == self.generation else { return }
                 self.loadingMore = false
@@ -227,6 +237,11 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                 }
                 self.tableView.reloadData()
             }
+        }
+        if continuationEndpoint == "tv" {
+            InnerTube.shared.accountContinuation(token, handle)
+        } else {
+            InnerTube.shared.continuation(token, endpoint: continuationEndpoint, handle)
         }
     }
 
@@ -277,7 +292,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             let cell = tableView.dequeueReusableCell(withIdentifier: ChannelCell.reuseId, for: indexPath) as! ChannelCell
             cell.configure(c)
             cell.onSubscribe = { [weak cell] in
-                if Store.shared.isSubscribed(c.id) { Store.shared.unsubscribe(c.id) } else { Store.shared.subscribe(c) }
+                Account.shared.toggleSubscribe(c)
                 cell?.subscribeButton.setSubscribed(Store.shared.isSubscribed(c.id))
             }
             return cell

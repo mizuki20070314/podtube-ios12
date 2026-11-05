@@ -166,13 +166,28 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
         header.onTab = { [weak self] i in self?.selectTab(i) }
         header.onSubscribe = { [weak self] in
             guard let self = self, let i = self.info else { return }
-            if Store.shared.isSubscribed(i.id) { Store.shared.unsubscribe(i.id) } else { Store.shared.subscribe(i.asItem) }
+            Account.shared.toggleSubscribe(i.asItem)
         }
         tableView.tableHeaderView = header
         reload()
     }
 
     func scrollToTop() { tableView.setContentOffset(.zero, animated: true) }
+
+    /// Signed in: the account knows whether this channel is subscribed (the local list only mirrors the recently active
+    /// ones). The TV channel page is large, so it is only asked for channels the local list does not know, once per session.
+    private static var askedChannels = Set<String>()
+
+    private func syncSubscription(_ info: ChannelInfo) {
+        guard Account.shared.isSignedIn, !Store.shared.isSubscribed(info.id),
+              !ChannelViewController.askedChannels.contains(info.id) else { return }
+        ChannelViewController.askedChannels.insert(info.id)
+        let item = info.asItem
+        InnerTube.shared.accountChannelSubscribed(id: info.id) { r in
+            guard case .success(let on) = r, on else { return }
+            DispatchQueue.main.async { Store.shared.subscribe(item) }
+        }
+    }
 
     @objc private func shareTapped() {
         if let u = URL(string: "https://www.youtube.com/channel/\(channelId)") { Router.shared.share(items: [u]) }
@@ -219,6 +234,7 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
                     self.title = info.name
                     self.header.configure(info, selected: self.tabIndex)
                     self.updateHeader()
+                    self.syncSubscription(info)
                 }
                 // The Home tab is a set of shelves; show it as a flat list.
                 var page = info.firstPage

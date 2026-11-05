@@ -176,7 +176,11 @@ final class VideoCell: UITableViewCell {
             durationLabel.backgroundColor = UIColor(white: 0, alpha: 0.8)
         }
         durationLabel.isHidden = (durationLabel.text ?? "").isEmpty
-        fraction = CGFloat(Store.shared.progress(for: v.id) ?? 0)
+        if let pct = v.watchedPercent {
+            fraction = CGFloat(pct) / 100
+        } else {
+            fraction = CGFloat(Store.shared.progress(for: v.id) ?? 0)
+        }
         progressBar.isHidden = fraction <= 0.01
         setNeedsLayout()
     }

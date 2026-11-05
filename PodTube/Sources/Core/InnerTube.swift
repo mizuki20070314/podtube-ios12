@@ -20,6 +20,15 @@ enum Clients {
     static var visionOS: ClientProfile { return visionOSBase.overridden("visionos") }
     static var androidVR: ClientProfile { return androidVRBase.overridden("android_vr") }
     static var ios: ClientProfile { return iosBase.overridden("ios") }
+    /// The only client Google accepts OAuth bearer tokens for (everything account related goes through it).
+    static var tv: ClientProfile { return tvBase.overridden("tv") }
+
+    private static let tvBase = ClientProfile(
+        name: "TVHTML5",
+        version: "7.20260707.07.00",
+        numericId: 7,
+        userAgent: OAuthConfig.tvUserAgent,
+        extra: [:])
 
     private static let visionOSBase = ClientProfile(
         name: "VISIONOS",
@@ -147,7 +156,8 @@ final class InnerTube {
 
     // MARK: Requests
 
-    private func makeRequest(endpoint: String, body: [String: Any], profile: ClientProfile, useVisitor: Bool = true) -> URLRequest? {
+    private func makeRequest(endpoint: String, body: [String: Any], profile: ClientProfile, useVisitor: Bool = true,
+                             extraHeaders: [String: String] = [:]) -> URLRequest? {
         guard let url = URL(string: "https://www.youtube.com/youtubei/v1/\(endpoint)?prettyPrint=false") else { return nil }
         var client: [String: Any] = [
             "clientName": profile.name,
@@ -176,6 +186,7 @@ final class InnerTube {
         req.setValue(language, forHTTPHeaderField: "Accept-Language")
         req.setValue("gzip", forHTTPHeaderField: "Accept-Encoding")
         if let v = visitor { req.setValue(v, forHTTPHeaderField: "X-Goog-Visitor-Id") }
+        for (k, v) in extraHeaders { req.setValue(v, forHTTPHeaderField: k) }
         return req
     }
 
@@ -183,17 +194,23 @@ final class InnerTube {
     func post(_ endpoint: String,
               body: [String: Any],
               profile: ClientProfile = Clients.visionOS,
+              extraHeaders: [String: String] = [:],
               completion: @escaping (Result<JSON, Error>) -> Void) {
         ensureVisitor { [weak self] in
-            guard let self = self, let req = self.makeRequest(endpoint: endpoint, body: body, profile: profile) else {
+            guard let self = self, let req = self.makeRequest(endpoint: endpoint, body: body, profile: profile,
+                                                              extraHeaders: extraHeaders) else {
                 completion(.failure(InnerTubeError.parse("bad request")))
                 return
             }
             Http.shared.send(req) { result in
                 switch result {
                 case .failure(let err):
-                    if case HttpError.badStatus(let code) = err {
-                        completion(.failure(InnerTubeError.http(code)))
+                    if case HttpError.badStatus(let code, let data) = err {
+                        if let data = data, let msg = JSON.parse(data)["error"]["message"].string {
+                            completion(.failure(InnerTubeError.api(code, msg)))
+                        } else {
+                            completion(.failure(InnerTubeError.http(code)))
+                        }
                     } else {
                         completion(.failure(err))
                     }

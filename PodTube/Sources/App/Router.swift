@@ -97,7 +97,7 @@ final class Router {
         let saved = Store.shared.isWatchLater(video.id)
         actions.append(SheetAction(title: saved ? L10n.t("video.removeWatchLater") : L10n.t("video.watchLater"),
                                    icon: "watch_later_outline") {
-            Store.shared.toggleWatchLater(video)
+            Account.shared.setWatchLater(video, !saved)
             Toast.show(saved ? L10n.t("video.removed") : L10n.t("video.saved"))
         })
         actions.append(SheetAction(title: L10n.t("video.addToPlaylist"), icon: "playlist_add") { [weak self] in
@@ -153,12 +153,29 @@ final class Router {
     }
 
     func showPlaylistPicker(for video: VideoItem) {
+        guard Account.shared.isSignedIn else {
+            presentPlaylistPicker(for: video, remote: [])
+            return
+        }
+        if !Account.shared.hasPlaylistCache { Toast.show(L10n.t("common.loading")) }
+        Account.shared.loadPlaylists { [weak self] list in
+            self?.presentPlaylistPicker(for: video, remote: list)
+        }
+    }
+
+    /// `remote`: the signed-in account's own playlists (adding is all the TV API offers, so they carry no check mark).
+    private func presentPlaylistPicker(for video: VideoItem, remote: [PlaylistItem]) {
         var actions: [SheetAction] = []
         let later = Store.shared.isWatchLater(video.id)
         actions.append(SheetAction(title: L10n.t("video.watchLater"), icon: "watch_later_outline", checked: later) {
-            Store.shared.toggleWatchLater(video)
+            Account.shared.setWatchLater(video, !later)
             Toast.show(later ? L10n.t("video.removed") : L10n.t("video.saved"))
         })
+        for p in remote {
+            actions.append(SheetAction(title: p.title, icon: "playlist_play", subtitle: p.videoCount.isEmpty ? nil : p.videoCount) {
+                Account.shared.addToPlaylist(p, video: video)
+            })
+        }
         for p in Store.shared.playlists {
             let has = p.videos.contains { $0.id == video.id }
             actions.append(SheetAction(title: p.name, icon: "playlist_play", subtitle: "\(p.videos.count)", checked: has) {

@@ -34,6 +34,7 @@ final class HomeViewController: FeedViewController, HidesNavigationBar {
         appBar.onSearch = { Router.shared.root?.openSearchScreen() }
         chipBar.onSelect = { [weak self] i in self?.selectChip(i) }
         NotificationCenter.default.addObserver(self, selector: #selector(settingsChanged), name: .settingsChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(accountChanged), name: .accountChanged, object: nil)
         reload()
     }
 
@@ -41,6 +42,24 @@ final class HomeViewController: FeedViewController, HidesNavigationBar {
         buildChips()
         clearList()
         reload()
+    }
+
+    /// Signed in or out: the "All" chip switches between the personal and the anonymous feed.
+    @objc private func accountChanged() {
+        clearList()
+        reload()
+    }
+
+    /// Personal recommendations; falls back to the anonymous feed when the account page cannot be read.
+    private func accountHomeOrAnonymous(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
+        InnerTube.shared.accountHome { [weak self] r in
+            if case .success(let page) = r, !page.items.isEmpty {
+                done(r)
+                return
+            }
+            DispatchQueue.main.async { self?.continuationEndpoint = "browse" }
+            InnerTube.shared.home(done)
+        }
     }
 
     private func buildChips() {
@@ -77,8 +96,13 @@ final class HomeViewController: FeedViewController, HidesNavigationBar {
 
     override func fetchFirstPage(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
         if selected == 0 {
-            continuationEndpoint = "browse"
-            InnerTube.shared.home(done)
+            if Account.shared.isSignedIn {
+                continuationEndpoint = "tv"
+                accountHomeOrAnonymous(done)
+            } else {
+                continuationEndpoint = "browse"
+                InnerTube.shared.home(done)
+            }
         } else {
             let d = defs[selected]
             continuationEndpoint = "search"

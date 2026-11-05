@@ -87,12 +87,15 @@ final class ChannelStripView: UIView {
     }
 }
 
-/// Subscriptions tab. Subscriptions are stored on the device; the feed is built from each channel's Videos tab.
+/// Subscriptions tab. Signed out, the subscriptions are stored on the device and the feed is built from each
+/// channel's Videos tab; signed in, the feed and the channel strip come from the account.
 final class SubscriptionsViewController: FeedViewController, HidesNavigationBar, ScrollsToTop {
     private let appBar = AppBarView()
     private let strip = ChannelStripView()
     private var shownIds: [String] = []
     private var lastLoad = Date.distantPast
+    /// Channel strip of the signed-in account (the TV page lists the most recently active channels).
+    private var accountChannels: [ChannelItem] = []
     private static let videosTab = "EgZ2aWRlb3PyBgQKAjoA"
 
     private var appBarHeight: CGFloat {
@@ -101,7 +104,9 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
         return top + AppBarView.contentHeight
     }
 
-    private var stripHeight: CGFloat { return Store.shared.subscriptions.isEmpty ? 0 : ChannelStripView.height }
+    private var signedIn: Bool { return Account.shared.isSignedIn }
+    private var stripChannels: [ChannelItem] { return signedIn ? accountChannels : Store.shared.subscriptions }
+    private var stripHeight: CGFloat { return stripChannels.isEmpty ? 0 : ChannelStripView.height }
 
     override var listFrame: CGRect {
         let top = appBarHeight + stripHeight
@@ -122,8 +127,14 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
         strip.onChannel = { c in Router.shared.openChannel(id: c.id, name: c.name) }
         strip.onAll = { Router.shared.push(ChannelsManagerViewController()) }
         shownIds = Store.shared.subscriptions.map { $0.id }
-        strip.setChannels(Store.shared.subscriptions)
+        strip.setChannels(stripChannels)
+        NotificationCenter.default.addObserver(self, selector: #selector(accountChanged), name: .accountChanged, object: nil)
         reload()
+    }
+
+    @objc private func accountChanged() {
+        accountChannels = []
+        refreshAll()
     }
 
     func scrollToTop() { tableView.setContentOffset(CGPoint(x: 0, y: -tableView.contentInset.top), animated: true) }
@@ -138,6 +149,10 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        if signedIn {
+            if Date().timeIntervalSince(lastLoad) > 600 { refreshAll() }
+            return
+        }
         let ids = Store.shared.subscriptions.map { $0.id }
         if ids != shownIds || Date().timeIntervalSince(lastLoad) > 600 {
             refreshAll()
@@ -145,19 +160,43 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
     }
 
     override func storeChanged() {
+        if signedIn { return }
         let ids = Store.shared.subscriptions.map { $0.id }
         if ids != shownIds && view.window == nil { refreshAll() }
     }
 
     private func refreshAll() {
         shownIds = Store.shared.subscriptions.map { $0.id }
-        strip.setChannels(Store.shared.subscriptions)
+        strip.setChannels(stripChannels)
         view.setNeedsLayout()
         clearList()
         reload()
     }
 
+    /// The account's own feed (TV client) plus its channel strip.
+    private func fetchAccountPage(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
+        continuationEndpoint = "tv"
+        lastLoad = Date()
+        InnerTube.shared.accountSubscriptions { [weak self] r in
+            if case .success(let s) = r {
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.accountChannels = s.channels
+                    self.strip.setChannels(self.stripChannels)
+                    self.view.setNeedsLayout()
+                    Store.shared.mergeSubscriptions(s.channels)
+                }
+            }
+            done(r.map { $0.feed })
+        }
+    }
+
     override func fetchFirstPage(_ done: @escaping (Result<FeedPage, Error>) -> Void) {
+        if signedIn {
+            fetchAccountPage(done)
+            return
+        }
+        continuationEndpoint = "browse"
         let subs = Store.shared.subscriptions
         lastLoad = Date()
         if subs.isEmpty {

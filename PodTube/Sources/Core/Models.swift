@@ -15,6 +15,8 @@ struct VideoItem: Codable, Equatable {
     var isLive: Bool = false
     var isUpcoming: Bool = false
     var isShort: Bool = false
+    /// Resume progress (0-100) reported by the account history; nil when unknown.
+    var watchedPercent: Int?
 
     init(id: String) { self.id = id }
 
@@ -244,6 +246,8 @@ struct PlaybackInfo {
     var audioURL: URL?
     var progressiveURL: URL?
     var captions: [CaptionTrack] = []
+    /// `playbackTracking.videostatsPlaybackUrl`: pinging it registers the view (watch history of a signed-in account).
+    var statsURL: URL?
     var videoFormats: [AdaptiveFormat] = []
     var audioFormats: [AdaptiveFormat] = []
     var maxHeight: Int = 0
@@ -252,6 +256,19 @@ struct PlaybackInfo {
     init(videoId: String) { self.videoId = videoId }
 
     var isPlayable: Bool { return hlsURL != nil || progressiveURL != nil || (videoURL != nil && audioURL != nil) }
+}
+
+/// Like / subscribe state of a video for the signed-in account (from the TV watch page).
+struct AccountWatchState {
+    var likeStatus: String = ""
+    var subscribed: Bool?
+    var channelId: String = ""
+}
+
+enum LikeStatus: String {
+    case like = "LIKE"
+    case dislike = "DISLIKE"
+    case none = "INDIFFERENT"
 }
 
 struct ShortEntry {
@@ -266,6 +283,10 @@ enum InnerTubeError: Error {
     /// "Sign in to confirm you're not a bot" – retried with a fresh visitor id.
     case botCheck(String)
     case http(Int)
+    /// The API answered with an error object (code + message in the user's language).
+    case api(Int, String)
+    /// Needs a signed-in account.
+    case authRequired
     case empty
 }
 
@@ -276,6 +297,8 @@ extension InnerTubeError: LocalizedError {
         case .unplayable(let s): return s
         case .botCheck(let s): return s
         case .http(let c): return "HTTP \(c)"
+        case .api(_, let m): return m
+        case .authRequired: return "Sign in required"
         case .empty: return "No results"
         }
     }

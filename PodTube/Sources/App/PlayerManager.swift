@@ -304,6 +304,7 @@ final class PlayerManager: NSObject {
                 player.seek(to: CMTime(seconds: pos, preferredTimescale: 600))
             }
             if let v = video { Store.shared.addHistory(v, position: currentTime, duration: duration) }
+            if let i = info { Account.shared.reportPlayback(i) }
             if wantsPlay { play() }
             updateNowPlaying()
         case .failed:

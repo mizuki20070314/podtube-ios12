@@ -20,7 +20,7 @@ func wait<T>(_ call: (@escaping Done<T>) -> Void) -> Result<T, Error> {
 func show(_ it: FeedItem) {
     switch it {
     case .video(let v):
-        let tag = v.isLive ? " LIVE" : (v.isShort ? " SHORT" : "")
+        let tag = (v.isLive ? " LIVE" : (v.isShort ? " SHORT" : "")) + (v.watchedPercent.map { " \($0)%" } ?? "")
         print("  V \(v.id) [\(v.duration)] \(v.title) | \(v.channelName)(\(v.channelId)) | \(v.views) | \(v.published)\(tag)")
     case .channel(let c):
         print("  C \(c.id) \(c.name) \(c.handle) \(c.subscribers) avatar=\(c.avatar.isEmpty ? "-" : "ok")")
@@ -59,9 +59,28 @@ func check(_ url: URL, range: String? = nil, ua: String? = nil) -> String {
 
 func fail(_ e: Error) { print("ERROR:", e) }
 
+/// Account commands read a token file ({access_token, refresh_token, expires_at}) named by PT_TOKEN_FILE.
+/// The session has no storage here, so nothing is written back and the file stays valid.
+func signInFromEnvironment() -> Bool {
+    guard let path = ProcessInfo.processInfo.environment["PT_TOKEN_FILE"],
+          let data = FileManager.default.contents(atPath: path) else {
+        print("set PT_TOKEN_FILE to a token json file")
+        return false
+    }
+    let j = JSON.parse(data)
+    guard let access = j["access_token"].string, let refresh = j["refresh_token"].string else {
+        print("token file has no access_token / refresh_token")
+        return false
+    }
+    let expires = Date(timeIntervalSince1970: j["expires_at"].double ?? 0)
+    AuthSession.shared.adopt(AuthTokens(accessToken: access, refreshToken: refresh, expiresAt: expires))
+    return true
+}
+
 let args = Array(CommandLine.arguments.dropFirst())
 let cmd = args.first ?? "help"
 let tub = InnerTube.shared
+if cmd.hasPrefix("a-") && !signInFromEnvironment() { exit(1) }
 
 switch cmd {
 case "home":
@@ -225,6 +244,97 @@ case "shorts":
     case .failure(let e): fail(e)
     }
 
+case "login-test":
+    // Requests a real device code and polls once (nobody approves it, so Google must answer "pending"). Anonymous.
+    switch wait({ AuthSession.shared.requestDeviceCode($0) }) {
+    case .success(let c):
+        print("user code: \(c.userCode)  url: \(c.verificationURL)  interval: \(c.interval)s  expires in: \(Int(c.expiresAt.timeIntervalSinceNow))s")
+        switch wait({ AuthSession.shared.pollToken(c, $0) }) {
+        case .success: print("unexpected: tokens were issued")
+        case .failure(let e): print("poll ->", e)
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-whoami":
+    switch wait({ tub.accountProfile($0) }) {
+    case .success(let p): print("name=\(p.name) handle=\(p.handle) avatar=\(p.avatar.isEmpty ? "-" : "ok")")
+    case .failure(let e): fail(e)
+    }
+
+case "a-home":
+    switch wait({ tub.accountHome($0) }) {
+    case .success(let p):
+        showPage(p, limit: 12)
+        if let c = p.continuation {
+            print("-- continuation page")
+            if case .success(let p2) = wait({ tub.accountContinuation(c, $0) }) { showPage(p2, limit: 5) }
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-subs":
+    switch wait({ tub.accountSubscriptions($0) }) {
+    case .success(let s):
+        print("channels in strip: \(s.channels.count)")
+        for c in s.channels.prefix(20) { print("  C \(c.id) \(c.name) avatar=\(c.avatar.isEmpty ? "-" : "ok")") }
+        showPage(s.feed, limit: 8)
+        if let c = s.feed.continuation {
+            print("-- continuation page")
+            if case .success(let p2) = wait({ tub.accountContinuation(c, $0) }) { showPage(p2, limit: 3) }
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-channels":
+    switch wait({ tub.accountChannels($0) }) {
+    case .success(let list): for c in list { print("  C \(c.id) \(c.name) \(c.handle) \(c.subscribers)") }
+    case .failure(let e): fail(e)
+    }
+
+case "a-browse":
+    // a-browse <browseId> [more]: FEhistory / FElibrary / VLWL / VLLL / FEplaylist_aggregation / VL<playlist id>
+    let id = args.count > 1 ? args[1] : "FEhistory"
+    switch wait({ tub.accountBrowse(id, $0) }) {
+    case .success(let p):
+        showPage(p, limit: 10)
+        if args.count > 2, let c = p.continuation, case .success(let p2) = wait({ tub.accountContinuation(c, $0) }) {
+            print("-- continuation page")
+            showPage(p2, limit: 5)
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-playlist":
+    // a-playlist <id> [more]: WL / LL / any playlist id through the TV client
+    let id = args.count > 1 ? args[1] : "WL"
+    switch wait({ tub.accountPlaylist(id: id, $0) }) {
+    case .success(let p):
+        print("title=\(p.title) owner=\(p.owner) stats=\(p.stats)")
+        showPage(p.firstPage, limit: 5)
+        if args.count > 2, let c = p.firstPage.continuation, case .success(let p2) = wait({ tub.accountContinuation(c, $0) }) {
+            print("-- continuation page")
+            showPage(p2, limit: 3)
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-chan":
+    let id = args.count > 1 ? args[1] : "UCuAXFkgsw1L7xaCfnd5JJOw"
+    switch wait({ tub.accountChannelSubscribed(id: id, $0) }) {
+    case .success(let on): print("subscribed=\(on)")
+    case .failure(let e): fail(e)
+    }
+
+case "a-state":
+    let id = args.count > 1 ? args[1] : "dQw4w9WgXcQ"
+    switch wait({ tub.accountWatchState(videoId: id, $0) }) {
+    case .success(let s): print("likeStatus=\(s.likeStatus) subscribed=\(s.subscribed.map { String($0) } ?? "-") channel=\(s.channelId)")
+    case .failure(let e): fail(e)
+    }
+
 default:
     print("commands: home | search q [channel|playlist|video|date] [more] | suggest q | watch id [playlist] | comments id | channel id [tabIndex] | playlist id | play id | shorts seed")
+    print("sign-in: login-test (anonymous: requests a device code and polls once)")
+    print("account (PT_TOKEN_FILE): a-whoami | a-home | a-subs | a-channels | a-browse id [more] | a-playlist id [more] | a-chan id | a-state videoId")
 }

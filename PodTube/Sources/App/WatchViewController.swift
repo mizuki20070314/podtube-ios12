@@ -115,6 +115,12 @@ final class WatchContentViewController: FeedViewController {
                 }
             }
         }
+        if let v = video {
+            Account.shared.loadWatchState(video: v) { [weak self] state in
+                guard let self = self, self.video?.id == v.id else { return }
+                self.header.apply(account: state)
+            }
+        }
     }
 
     override func play(_ v: VideoItem) {

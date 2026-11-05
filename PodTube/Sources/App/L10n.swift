@@ -212,6 +212,33 @@ enum L10n {
         "settings.version": ("バージョン", "Version"),
         "settings.disclaimer": ("非公式の YouTube クライアントです。YouTube / Google とは無関係です。", "An unofficial YouTube client. Not affiliated with YouTube or Google."),
         "settings.source": ("ソースコード", "Source code"),
-        "settings.done": ("完了", "Done")
+        "settings.done": ("完了", "Done"),
+
+        // account / Google sign-in
+        "settings.account": ("アカウント", "Account"),
+        "account.signIn": ("Google アカウントでログイン", "Sign in with Google"),
+        "account.signInHint": ("おすすめ・登録チャンネル・履歴・「後で見る」を使えます", "Get your recommendations, subscriptions, history and Watch later"),
+        "account.signedIn": ("ログイン中", "Signed in"),
+        "account.signOut": ("ログアウト", "Sign out"),
+        "account.signInRequired": ("ログインが必要です。「マイページ」からログインしてください。", "Sign-in required. Sign in from the You tab."),
+        "account.actionFailed": ("アカウントに反映できませんでした", "Couldn't update your account"),
+        "account.signedInNote": ("おすすめ・登録チャンネル・履歴・高評価・「後で見る」はこのアカウントのものが表示されます。ログアウトすると、端末からトークンを削除し、Google 側でも失効させます。", "Recommendations, subscriptions, history, likes and Watch later come from this account. Signing out deletes the token from this device and revokes it at Google."),
+        "account.signedOutNote": ("ログインしなくても、検索・再生・コメントの閲覧は使えます。ログインは YouTube の TV アプリと同じ方式で行うので、Google のパスワードはこのアプリに入力しません。", "Search, playback and comments work without signing in. Sign-in uses the same method as the YouTube TV app, so your Google password is never typed into this app."),
+        "signin.title": ("ログイン", "Sign in"),
+        "signin.intro": ("Google アカウントでログインすると、おすすめ・登録チャンネル・視聴履歴・高評価・「後で見る」が使えるようになります。", "Sign in with your Google account to use your recommendations, subscriptions, watch history, likes and Watch later."),
+        "signin.step1": ("① この端末の Safari か、別の端末（パソコン・スマホ）で次のページを開く", "1. In Safari on this device, or on another device (computer / phone), open"),
+        "signin.step2": ("② 次のコードを入力し、Google アカウントでログインして許可する", "2. Enter this code, sign in to Google and allow access"),
+        "signin.note": ("パスワードはこのアプリには入力されません。ログイン情報（トークン）は端末のキーチェーンにだけ保存され、「ログアウト」で削除と失効が行われます。非公式アプリのため、YouTube の TV アプリと同じ機器コード方式を使っています。", "Your password is never typed into this app. The sign-in token is kept only in this device's Keychain and is deleted and revoked when you sign out. Because this is an unofficial app it uses the same device-code method as the YouTube TV app."),
+        "signin.copy": ("コードをコピー", "Copy code"),
+        "signin.open": ("ページを開く", "Open page"),
+        "signin.newCode": ("新しいコードを取得", "Get a new code"),
+        "signin.waiting": ("承認を待っています…", "Waiting for approval…"),
+        "signin.getting": ("コードを取得しています…", "Getting a code…"),
+        "signin.failed": ("コードを取得できませんでした", "Couldn't get a code"),
+        "signin.denied": ("ログインが拒否されました", "Sign-in was denied"),
+        "signin.finishing": ("ログインしています…", "Signing in…"),
+        "signin.done": ("ログインしました", "Signed in"),
+        "signin.copied": ("コードをコピーしました", "Code copied"),
+        "video.unlike": ("高評価を取り消す", "Remove like")
     ]
 }

@@ -96,14 +96,10 @@ final class ShortCell: UICollectionViewCell {
 
     @objc private func subscribeTapped() {
         guard let v = video, !v.channelId.isEmpty else { return }
-        if Store.shared.isSubscribed(v.channelId) {
-            Store.shared.unsubscribe(v.channelId)
-        } else {
-            var c = ChannelItem(id: v.channelId)
-            c.name = v.channelName
-            c.avatar = v.channelAvatar
-            Store.shared.subscribe(c)
-        }
+        var c = ChannelItem(id: v.channelId)
+        c.name = v.channelName
+        c.avatar = v.channelAvatar
+        Account.shared.toggleSubscribe(c)
         subscribeButton.setSubscribed(Store.shared.isSubscribed(v.channelId))
     }
 
@@ -523,7 +519,7 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
             if let url = URL(string: "https://youtube.com/shorts/\(v.id)") { Router.shared.share(items: [v.title, url]) }
         }
         cell.onMore = { Router.shared.showVideoMenu(v) }
-        cell.onLike = { Store.shared.toggleLike(v) }
+        cell.onLike = { Account.shared.toggleLike(v) }
         if indexPath.item == current, player.currentItem != nil {
             cell.attach(player: player)
             cell.hidePoster(player.currentTime().seconds > 0.05)
