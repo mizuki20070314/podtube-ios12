@@ -6,41 +6,73 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        DebugRoutes.applyEarlyArguments()
+        Settings.applyToClient()
+        _ = PlayerManager.shared
+
         let win = UIWindow(frame: UIScreen.main.bounds)
-        win.rootViewController = BootViewController()
+        win.backgroundColor = Theme.background
+        let root = RootViewController()
+        win.rootViewController = root
         win.makeKeyAndVisible()
         window = win
+        Router.shared.window = win
+        Router.shared.root = root
         return true
     }
 }
 
-/// Temporary root screen used while the app is being built up.
-final class BootViewController: UIViewController {
-    private let label = UILabel()
+/// Launch arguments used by the CI smoke test to drive the UI and take screenshots.
+///   -theme light|dark      -region JP|US      -route "watch:ID;wait:6;comments"
+enum DebugRoutes {
+    private static func value(for key: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: key), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { return .lightContent }
+    static func applyEarlyArguments() {
+        if let t = value(for: "-theme") { UserDefaults.standard.set(t == "light" ? 1 : 0, forKey: "theme") }
+        if let r = value(for: "-region") { UserDefaults.standard.set(r, forKey: "contentRegion") }
+        if let l = value(for: "-uilang") { UserDefaults.standard.set(l, forKey: "uiLanguage") }
+    }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = UIColor(white: 0.06, alpha: 1)
-        label.text = "PodTube"
-        label.textColor = .white
-        label.font = UIFont.boldSystemFont(ofSize: 28)
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.centerYAnchor)
-        ])
-        InnerTube.shared.post("search", body: ["query": "test"]) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success: self.label.text = "PodTube\nAPI OK"
-                case .failure(let e): self.label.text = "PodTube\n\(e)"
-                }
-                self.label.numberOfLines = 0
+    static func runIfRequested(root: RootViewController) {
+        guard let script = value(for: "-route") else { return }
+        let steps = script.split(separator: ";").map { String($0) }
+        var delay: Double = 1.0
+        for step in steps {
+            if step.hasPrefix("wait:"), let n = Double(step.dropFirst(5)) {
+                delay += n
+                continue
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { run(step, root: root) }
+            delay += 0.4
+        }
+    }
+
+    private static func run(_ step: String, root: RootViewController) {
+        let parts = step.split(separator: ":", maxSplits: 1).map { String($0) }
+        let name = parts.first ?? ""
+        let arg = parts.count > 1 ? parts[1] : ""
+        switch name {
+        case "tab": root.selectTab(Int(arg) ?? 0)
+        case "search": Router.shared.openSearch(query: arg)
+        case "suggest": Router.shared.push(SearchViewController(prefill: arg))
+        case "watch": Router.shared.play(VideoItem(id: arg))
+        case "channel": Router.shared.openChannel(id: arg)
+        case "playlist": Router.shared.openPlaylist(id: arg)
+        case "settings": Router.shared.openSettings()
+        case "comments": root.debugOpenComments()
+        case "minimize": root.minimizeWatchIfNeeded()
+        case "landscape": root.setLandscape(true)
+        case "portrait": root.setLandscape(false)
+        case "sheet":
+            var v = VideoItem(id: "dQw4w9WgXcQ")
+            v.title = "Sample"
+            v.channelId = "UCuAXFkgsw1L7xaCfnd5JJOw"
+            Router.shared.showVideoMenu(v)
+        default: break
         }
     }
 }
