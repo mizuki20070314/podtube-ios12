@@ -82,6 +82,13 @@ extension InnerTube {
         }
     }
 
+    /// Name / avatar / subscriber text of a channel, fetched cheaply through its Videos tab.
+    func channelBasics(id: String, _ done: @escaping Done<ChannelInfo>) {
+        post("browse", body: ["browseId": id, "params": "EgZ2aWRlb3PyBgQKAjoA"]) { r in
+            done(r.map { Parse.channelInfo($0, id: id) })
+        }
+    }
+
     func playlist(id: String, _ done: @escaping Done<PlaylistInfo>) {
         post("browse", body: ["browseId": "VL" + id]) { r in
             done(r.map { Parse.playlistInfo($0, id: id) })

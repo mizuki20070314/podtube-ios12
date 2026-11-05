@@ -9,6 +9,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         DebugRoutes.applyEarlyArguments()
         Settings.applyToClient()
         _ = PlayerManager.shared
+        _ = DownloadManager.shared
 
         let win = UIWindow(frame: UIScreen.main.bounds)
         win.backgroundColor = Theme.background
@@ -19,6 +20,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Router.shared.window = win
         Router.shared.root = root
         return true
+    }
+
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        DownloadManager.shared.backgroundCompletionHandler = completionHandler
     }
 }
 

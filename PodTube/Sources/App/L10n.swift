@@ -159,6 +159,14 @@ enum L10n {
         "subs.manage": ("チャンネルを管理", "Manage channels"),
         "subs.all": ("すべて", "All"),
 
+        "downloads.started": ("ダウンロードを開始しました", "Download started"),
+        "downloads.done": ("ダウンロードが完了しました", "Download finished"),
+        "downloads.failed": ("ダウンロードに失敗しました", "Download failed"),
+        "downloads.empty": ("ダウンロードした動画はありません", "No downloaded videos"),
+        "downloads.already": ("ダウンロード済み、またはダウンロード中です", "Already downloaded or downloading"),
+        "downloads.unavailable": ("この動画はダウンロードできません", "This video can't be downloaded"),
+        "downloads.saved": ("ダウンロード済み", "Downloaded"),
+
         "playlist.playAll": ("すべて再生", "Play all"),
         "playlist.shuffle": ("シャッフル", "Shuffle"),
 

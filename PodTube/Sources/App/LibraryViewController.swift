@@ -369,6 +369,7 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
         bar.addSubviews([titleLabel, searchButton, settingsButton, divider])
         applyTheme()
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .storeChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: .downloadsChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .settingsChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(miniChanged), name: .miniPlayerChanged, object: nil)
@@ -405,6 +406,11 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
         rows = [
             Row(icon: "history", title: L10n.t("library.history"), count: s.history.isEmpty ? nil : "\(s.history.count)") {
                 Router.shared.push(StoredListViewController(kind: .history))
+            },
+            Row(icon: "file_download", title: L10n.t("library.downloads"),
+                count: (DownloadManager.shared.records.count + DownloadManager.shared.pending.count) == 0
+                    ? nil : "\(DownloadManager.shared.records.count + DownloadManager.shared.pending.count)") {
+                Router.shared.push(DownloadsViewController())
             },
             Row(icon: "playlist_play", title: L10n.t("library.playlists"), count: s.playlists.isEmpty ? nil : "\(s.playlists.count)") {
                 Router.shared.push(UserPlaylistsViewController())

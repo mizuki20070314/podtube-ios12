@@ -241,12 +241,15 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
             self?.seedStarted = false
             self?.seedFromHome()
         }
+        NotificationCenter.default.addObserver(self, selector: #selector(appBackgrounded),
+                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main) { [weak self] _ in
             self?.tickProgress()
         }
     }
 
     deinit {
+        NotificationCenter.default.removeObserver(self)
         if let t = timeObserver { player.removeTimeObserver(t) }
     }
 
@@ -283,6 +286,8 @@ final class ShortsViewController: UIViewController, HidesNavigationBar, ScrollsT
     }
 
     @objc private func searchTapped() { Router.shared.root?.openSearchScreen() }
+
+    @objc private func appBackgrounded() { player.pause() }
 
     // MARK: Data
 

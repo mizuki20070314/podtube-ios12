@@ -89,6 +89,7 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
     private let dislikeIcon = UIImageView()
     private let shareButton = PillButton(icon: "share_outline", title: L10n.t("video.share"))
     private let saveButton = PillButton(icon: "playlist_add", title: L10n.t("video.save"))
+    private let downloadButton = PillButton(icon: "file_download", title: L10n.t("video.download"))
     private let channelRow = UIView()
     private let avatar = UIImageView()
     private let channelName = UILabel()
@@ -101,6 +102,9 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
     private let commentText = UILabel()
     private let commentsChevron = UIImageView()
     private let divider = UIView()
+    private let upNextLabel = UILabel()
+    private let autoplayLabel = UILabel()
+    private let autoplaySwitch = UISwitch()
 
     private(set) var video: VideoItem?
     private var info: WatchInfo?
@@ -152,8 +156,10 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         likePill.addSubviews([likeIcon, likeLabel, likeButton, likeDivider, dislikeIcon, dislikeButton])
         shareButton.addTarget(self, action: #selector(shareTapped), for: .touchUpInside)
         saveButton.addTarget(self, action: #selector(saveTapped), for: .touchUpInside)
+        downloadButton.addTarget(self, action: #selector(downloadTapped), for: .touchUpInside)
         actionScroll.showsHorizontalScrollIndicator = false
-        actionScroll.addSubviews([likePill, shareButton, saveButton])
+        actionScroll.addSubviews([likePill, shareButton, downloadButton, saveButton])
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshDownload), name: .downloadsChanged, object: nil)
 
         // channel row
         avatar.contentMode = .scaleAspectFill
@@ -184,7 +190,16 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         }
         commentsCard.addSubviews([commentsTitle, commentsCount, commentAvatar, commentText, commentsChevron])
 
-        addSubviews([titleLabel, metaLabel, moreLabel, descView, actionScroll, channelRow, commentsCard, divider])
+        upNextLabel.font = Theme.font(16, .bold)
+        upNextLabel.text = L10n.t("video.nextUp")
+        autoplayLabel.font = Theme.font(12)
+        autoplayLabel.text = L10n.t("video.autoplay")
+        autoplaySwitch.onTintColor = Theme.red
+        autoplaySwitch.isOn = Settings.autoplay
+        autoplaySwitch.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+        autoplaySwitch.addTarget(self, action: #selector(autoplayChanged), for: .valueChanged)
+        addSubviews([titleLabel, metaLabel, moreLabel, descView, actionScroll, channelRow, commentsCard, divider,
+                     upNextLabel, autoplayLabel, autoplaySwitch])
         applyTheme()
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(storeChanged), name: .storeChanged, object: nil)
@@ -214,6 +229,9 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         commentsChevron.tintColor = Theme.secondaryText
         commentAvatar.backgroundColor = Theme.surfaceHigh
         divider.backgroundColor = Theme.divider
+        upNextLabel.textColor = Theme.text
+        autoplayLabel.textColor = Theme.secondaryText
+        autoplaySwitch.onTintColor = Theme.red
         refreshActions()
         if expanded { renderDescription() }
     }
@@ -308,6 +326,14 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         else if likeLabel.text == nil { likeLabel.text = L10n.t("video.like") }
         shareButton.set(icon: "share_outline", title: L10n.t("video.share"))
         saveButton.set(icon: Store.shared.isWatchLater(v.id) ? "bookmark" : "playlist_add", title: L10n.t("video.save"))
+        let dm = DownloadManager.shared
+        if dm.record(for: v.id) != nil {
+            downloadButton.set(icon: "offline_pin", title: L10n.t("downloads.saved"))
+        } else if let f = dm.fraction(for: v.id), dm.isDownloading(v.id) {
+            downloadButton.set(icon: "file_download", title: "\(Int(f * 100))%")
+        } else {
+            downloadButton.set(icon: "file_download", title: L10n.t("video.download"))
+        }
         setNeedsLayout()
     }
 
@@ -346,6 +372,28 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         if let v = video { Router.shared.share(video: v) }
     }
 
+    @objc private func downloadTapped() {
+        guard let v = video else { return }
+        let dm = DownloadManager.shared
+        if dm.record(for: v.id) != nil {
+            SheetView.show(title: L10n.t("video.download"), actions: [
+                SheetAction(title: L10n.t("common.delete"), icon: "delete", destructive: true) { dm.delete(v.id) }
+            ])
+        } else if dm.isDownloading(v.id) {
+            SheetView.show(title: L10n.t("video.download"), actions: [
+                SheetAction(title: L10n.t("common.cancel"), icon: "close", destructive: true) { dm.cancel(v.id) }
+            ])
+        } else {
+            Router.shared.startDownload(v)
+        }
+    }
+
+    @objc private func refreshDownload() {
+        refreshActions()
+        setNeedsLayout()
+        onNeedsLayout?()
+    }
+
     @objc private func saveTapped() {
         if let v = video { Router.shared.showPlaylistPicker(for: v) }
     }
@@ -359,6 +407,8 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
     }
 
     @objc private func commentsTapped() { onOpenComments?() }
+
+    @objc private func autoplayChanged() { Settings.autoplay = autoplaySwitch.isOn }
 
     // MARK: Description
 
@@ -374,6 +424,16 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         if let re = try? NSRegularExpression(pattern: "https?://[^\\s]+", options: []) {
             for m in re.matches(in: text, options: [], range: NSRange(location: 0, length: ns.length)) {
                 if let url = URL(string: ns.substring(with: m.range)) {
+                    attr.addAttributes([.link: url, .foregroundColor: Theme.link], range: m.range)
+                }
+            }
+        }
+        // hashtags -> search
+        if let re = try? NSRegularExpression(pattern: "#[^\\s#]+", options: []) {
+            for m in re.matches(in: text, options: [], range: NSRange(location: 0, length: ns.length)) {
+                let tag = ns.substring(with: m.range)
+                if let enc = tag.addingPercentEncoding(withAllowedCharacters: .alphanumerics),
+                   let url = URL(string: "podtube-search://\(enc)") {
                     attr.addAttributes([.link: url, .foregroundColor: Theme.link], range: m.range)
                 }
             }
@@ -395,6 +455,10 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
                   interaction: UITextItemInteraction) -> Bool {
         if URL.scheme == "podtube-seek", let host = URL.host, let secs = Double(host) {
             onSeek?(secs)
+            return false
+        }
+        if URL.scheme == "podtube-search", let host = URL.host, let q = host.removingPercentEncoding {
+            Router.shared.openSearch(query: q)
             return false
         }
         UIApplication.shared.open(URL, options: [:], completionHandler: nil)
@@ -448,6 +512,9 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         let sw = shareButton.sizeThatFits(.zero)
         shareButton.frame = CGRect(x: x, y: 0, width: sw.width, height: ah)
         x += sw.width + 8
+        let dw = downloadButton.sizeThatFits(.zero)
+        downloadButton.frame = CGRect(x: x, y: 0, width: dw.width, height: ah)
+        x += dw.width + 8
         let vw = saveButton.sizeThatFits(.zero)
         saveButton.frame = CGRect(x: x, y: 0, width: vw.width, height: ah)
         x += vw.width + pad
@@ -498,6 +565,14 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
             commentsCard.isHidden = true
             y += 6
         }
+        // "Up next" row with the autoplay switch
+        autoplaySwitch.isOn = Settings.autoplay
+        upNextLabel.frame = CGRect(x: pad, y: y, width: w - 140, height: 40)
+        autoplaySwitch.frame = CGRect(x: w - 51 * 0.8 - pad, y: y + (40 - 31 * 0.8) / 2, width: 51 * 0.8, height: 31 * 0.8)
+        let alw: CGFloat = 60
+        autoplayLabel.frame = CGRect(x: autoplaySwitch.frame.minX - alw - 4, y: y, width: alw, height: 40)
+        autoplayLabel.textAlignment = .right
+        y += 44
         return y
     }
 }

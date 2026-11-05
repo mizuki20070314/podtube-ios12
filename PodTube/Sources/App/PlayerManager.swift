@@ -148,6 +148,20 @@ final class PlayerManager: NSObject {
         state = .loading
         NotificationCenter.default.post(name: .playerItemChanged, object: nil)
 
+        if DownloadManager.shared.record(for: video.id) != nil, let urls = DownloadManager.shared.localURLs(for: video.id) {
+            var local = PlaybackInfo(videoId: video.id)
+            local.title = video.title
+            local.author = video.channelName
+            local.videoURL = urls.video
+            local.audioURL = urls.audio
+            info = local
+            candidates = [.composite(video: urls.video, audio: urls.audio)]
+            candidateIndex = 0
+            NotificationCenter.default.post(name: .playerItemChanged, object: nil)
+            startCandidate(gen)
+            return
+        }
+
         InnerTube.shared.playback(videoId: video.id) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self, gen == self.generation else { return }
@@ -264,6 +278,9 @@ final class PlayerManager: NSObject {
         guard gen == generation, item === player.currentItem else { return }
         switch item.status {
         case .readyToPlay:
+            if let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible) {
+                item.select(nil, in: group)
+            }
             if let v = video, let pos = Store.shared.resumePosition(for: v.id), !isLive, currentTime < 1 {
                 player.seek(to: CMTime(seconds: pos, preferredTimescale: 600))
             }

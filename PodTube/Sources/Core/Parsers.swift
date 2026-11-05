@@ -412,11 +412,18 @@ enum Parse {
         for f in sd["adaptiveFormats"].array {
             let mime = f["mimeType"].stringValue
             guard let u = f["url"].string else { continue }
+            let length = Int64(f["contentLength"].stringValue) ?? 0
             if mime.contains("video/mp4") && mime.contains("avc1") {
                 let h = f["height"].int ?? 0
+                if let url = URL(string: u) {
+                    info.videoFormats.append(AdaptiveFormat(height: h, url: url, bitrate: f["bitrate"].int ?? 0, contentLength: length))
+                }
                 if h > bestVideoH && h <= 1080 { bestVideoH = h; info.videoURL = URL(string: u) }
             } else if mime.contains("audio/mp4") && mime.contains("mp4a") {
                 let br = f["bitrate"].int ?? 0
+                if let url = URL(string: u) {
+                    info.audioFormats.append(AdaptiveFormat(height: 0, url: url, bitrate: br, contentLength: length))
+                }
                 if br > bestAudioRate { bestAudioRate = br; info.audioURL = URL(string: u) }
             }
         }

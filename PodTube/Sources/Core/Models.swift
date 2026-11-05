@@ -222,6 +222,13 @@ struct CaptionTrack {
     var isAuto: Bool
 }
 
+struct AdaptiveFormat {
+    var height: Int
+    var url: URL
+    var bitrate: Int
+    var contentLength: Int64
+}
+
 struct PlaybackInfo {
     var videoId: String
     var title: String = ""
@@ -235,6 +242,8 @@ struct PlaybackInfo {
     var audioURL: URL?
     var progressiveURL: URL?
     var captions: [CaptionTrack] = []
+    var videoFormats: [AdaptiveFormat] = []
+    var audioFormats: [AdaptiveFormat] = []
     var maxHeight: Int = 0
     var fetchedAt: Date = Date()
 

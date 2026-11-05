@@ -82,6 +82,11 @@ final class Router {
         actions.append(SheetAction(title: L10n.t("video.addToPlaylist"), icon: "playlist_add") { [weak self] in
             self?.showPlaylistPicker(for: video)
         })
+        if !video.isLive && !video.isUpcoming {
+            actions.append(SheetAction(title: L10n.t("video.download"), icon: "file_download") { [weak self] in
+                self?.startDownload(video)
+            })
+        }
         if !video.channelId.isEmpty {
             actions.append(SheetAction(title: L10n.t("video.channel"), icon: "account_circle_outline") { [weak self] in
                 self?.openChannel(id: video.channelId, name: video.channelName)
@@ -92,6 +97,38 @@ final class Router {
         })
         actions.append(contentsOf: extra)
         SheetView.show(actions: actions)
+    }
+
+    func startDownload(_ video: VideoItem) {
+        let dm = DownloadManager.shared
+        if dm.record(for: video.id) != nil || dm.isDownloading(video.id) {
+            Toast.show(L10n.t("downloads.already"))
+            return
+        }
+        Toast.show(L10n.t("common.loading"))
+        InnerTube.shared.playback(videoId: video.id) { result in
+            DispatchQueue.main.async {
+                guard case .success(let info) = result else {
+                    Toast.show(L10n.t("downloads.failed"))
+                    return
+                }
+                let heights = Array(Set(info.videoFormats.map { $0.height }.filter { $0 > 0 && $0 <= 1080 })).sorted(by: >)
+                if heights.isEmpty || info.audioFormats.isEmpty {
+                    Toast.show(L10n.t("downloads.unavailable"))
+                    return
+                }
+                let audio = info.audioFormats.max(by: { $0.bitrate < $1.bitrate })?.contentLength ?? 0
+                let actions = heights.map { h -> SheetAction in
+                    let vbytes = info.videoFormats.filter { $0.height == h }.map { $0.contentLength }.max() ?? 0
+                    let size = ByteCountFormatter.string(fromByteCount: vbytes + audio, countStyle: .file)
+                    return SheetAction(title: "\(h)p", icon: "file_download", subtitle: size) {
+                        dm.start(video: video, info: info, height: h)
+                        Toast.show(L10n.t("downloads.started"))
+                    }
+                }
+                SheetView.show(title: L10n.t("video.download"), actions: actions)
+            }
+        }
     }
 
     func showPlaylistPicker(for video: VideoItem) {
