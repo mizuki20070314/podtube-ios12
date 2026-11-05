@@ -219,7 +219,7 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
                 // The Home tab is a set of shelves; show it as a flat list.
                 var page = info.firstPage
                 page.continuation = nil
-                done(.success(self.fillChannel(page, info: info)))
+                done(.success(self?.fillChannel(page, info: info) ?? page))
             case .failure(let e):
                 done(.failure(e))
             }

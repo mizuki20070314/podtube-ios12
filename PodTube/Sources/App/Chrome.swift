@@ -18,7 +18,6 @@ final class AppBarView: UIView {
         titleLabel.font = Theme.font(20, .bold)
         searchButton.addTarget(self, action: #selector(searchTapped), for: .touchUpInside)
         routePicker.activeTintColor = Theme.red
-        routePicker.prioritizesVideoDevices = true
         addSubviews([logo, titleLabel, routePicker, searchButton, divider])
         applyTheme()
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)

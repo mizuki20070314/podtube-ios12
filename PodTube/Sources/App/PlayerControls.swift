@@ -166,7 +166,6 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         }
         routePicker.tintColor = .white
         routePicker.activeTintColor = Theme.red
-        routePicker.prioritizesVideoDevices = true
 
         timeLabel.font = Theme.font(12, .medium)
         timeLabel.textColor = .white
