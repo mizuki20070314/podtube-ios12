@@ -42,6 +42,7 @@ jobs:
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee build.log
 
@@ -56,6 +57,9 @@ jobs:
           ls -la "$APP"
           echo "--- Frameworks:"; ls -la "$APP/Frameworks" 2>/dev/null || echo "(none)"
           echo "--- Mach-O:"; file "$APP/PodTube"; xcrun vtool -show-build "$APP/PodTube" | head -12
+          echo "--- linked libraries:"; xcrun otool -L "$APP/PodTube" | tail -n +2 | awk '{print $1}'
+          echo "--- minimum OS of bundled dylibs (must all be <= 12.0):"
+          for f in "$APP"/Frameworks/*.dylib; do echo "$(basename "$f"): $(xcrun vtool -show-build "$f" | grep -m1 minos)"; done
           mkdir -p Payload
           cp -R "$APP" Payload/
           zip -qry PodTube-unsigned.ipa Payload
@@ -82,7 +86,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" PodTube-unsigned.ipa \
-            --title "PodTube ${GITHUB_REF_NAME}" --generate-notes
+            --title "PodTube ${GITHUB_REF_NAME}" \
+            --notes-file .github/release-notes.md --generate-notes
 
   ui-smoke:
     name: Simulator smoke test (screenshots)

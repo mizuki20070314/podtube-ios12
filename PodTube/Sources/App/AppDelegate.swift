@@ -70,6 +70,10 @@ enum DebugRoutes {
         case "channel": Router.shared.openChannel(id: arg)
         case "playlist": Router.shared.openPlaylist(id: arg)
         case "settings": Router.shared.openSettings()
+        case "diag":
+            let vc = DiagnosticsViewController()
+            Router.shared.push(vc)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { vc.runForDebug() }
         case "comments": root.debugOpenComments()
         case "w": root.debugWatch(arg)
         case "minimize": root.minimizeWatchIfNeeded()

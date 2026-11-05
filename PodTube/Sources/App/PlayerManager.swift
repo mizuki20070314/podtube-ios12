@@ -45,6 +45,7 @@ final class PlayerManager: NSObject {
     private var candidates: [PlayableSource] = []
     private var candidateIndex = 0
     private var lastSaved: TimeInterval = 0
+    private var lastItemError: NSError?
     private var wantsPlay = true
     private var sleepTimer: Timer?
     private(set) var sleepEndsAt: Date?
@@ -145,6 +146,7 @@ final class PlayerManager: NSObject {
         errorMessage = nil
         candidates = []
         candidateIndex = 0
+        lastItemError = nil
         wantsPlay = true
         tearDownItem()
         player.replaceCurrentItem(with: nil)
@@ -198,7 +200,9 @@ final class PlayerManager: NSObject {
     private func startCandidate(_ gen: Int) {
         guard gen == generation else { return }
         guard candidateIndex < candidates.count else {
-            fail(L10n.t("video.unavailable"))
+            var message = L10n.t("video.unavailable")
+            if let e = lastItemError { message += "\n(\(e.domain) \(e.code))" }
+            fail(message)
             return
         }
         switch candidates[candidateIndex] {
@@ -291,6 +295,7 @@ final class PlayerManager: NSObject {
             if wantsPlay { play() }
             updateNowPlaying()
         case .failed:
+            lastItemError = item.error as NSError?
             tryNextCandidate(gen)
         default:
             break

@@ -185,6 +185,8 @@ enum L10n {
         "comments.replies": ("%@ 件の返信", "%@ replies"),
 
         // settings
+        "diag.title": ("接続診断", "Diagnostics"),
+        "diag.run": ("診断を実行", "Run diagnostics"),
         "settings.title": ("設定", "Settings"),
         "settings.general": ("全般", "General"),
         "settings.appearance": ("テーマ", "Appearance"),

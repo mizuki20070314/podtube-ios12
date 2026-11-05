@@ -90,6 +90,9 @@ final class SettingsViewController: UIViewController, UITableViewDataSource, UIT
             ]),
             Section(title: L10n.t("settings.about"), rows: [
                 .info(L10n.t("settings.version"), version),
+                .button(L10n.t("diag.title"), false, { [weak self] in
+                    self?.navigationController?.pushViewController(DiagnosticsViewController(), animated: true)
+                }),
                 .info("", L10n.t("settings.disclaimer")),
                 .button(L10n.t("settings.source"), false, {
                     if let u = URL(string: "https://github.com/mizuki20070314/podtube-ios12") {
