@@ -78,7 +78,11 @@ extension InnerTube {
 
     func channelTab(id: String, params: String, _ done: @escaping Done<FeedPage>) {
         post("browse", body: ["browseId": id, "params": params]) { r in
-            done(r.map { Parse.feed($0["contents"]) })
+            done(r.map { json -> FeedPage in
+                var page = Parse.feed(json["contents"])
+                if page.items.isEmpty, let about = Parse.aboutText(json) { page.items = [.text(about)] }
+                return page
+            })
         }
     }
 

@@ -97,6 +97,8 @@ enum FeedItem {
     case channel(ChannelItem)
     case playlist(PlaylistItem)
     case shorts([VideoItem])
+    /// Plain text page content (channel "About").
+    case text(String)
 }
 
 struct FeedSection {

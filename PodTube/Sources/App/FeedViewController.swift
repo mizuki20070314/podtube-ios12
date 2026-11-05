@@ -63,6 +63,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         tableView.register(PlaylistCell.self, forCellReuseIdentifier: PlaylistCell.reuseId)
         tableView.register(ShortsShelfCell.self, forCellReuseIdentifier: ShortsShelfCell.reuseId)
         tableView.register(LoadingCell.self, forCellReuseIdentifier: LoadingCell.reuseId)
+        tableView.register(TextBlockCell.self, forCellReuseIdentifier: TextBlockCell.reuseId)
         view.addSubview(tableView)
         view.addSubview(stateView)
         stateView.isHidden = true
@@ -200,6 +201,8 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                 if fresh.isEmpty { continue }
                 for v in fresh { seen.insert(v.id) }
                 items.append(.shorts(fresh))
+            case .text:
+                items.append(it)
             }
         }
         continuation = page.continuation
@@ -249,6 +252,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         case .channel: return ChannelCell.rowHeight
         case .playlist: return PlaylistCell.height(width: w)
         case .shorts: return ShortsShelfCell.height(width: w)
+        case .text(let t): return TextBlockCell.height(t, width: w)
         }
     }
 
@@ -286,6 +290,10 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             cell.configure(list)
             cell.onSelect = { videos, index in Router.shared.openShorts(videos, index: index) }
             return cell
+        case .text(let t):
+            let cell = tableView.dequeueReusableCell(withIdentifier: TextBlockCell.reuseId, for: indexPath) as! TextBlockCell
+            cell.configure(t)
+            return cell
         }
     }
 
@@ -296,7 +304,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         case .video(let v): play(v)
         case .channel(let c): Router.shared.openChannel(id: c.id, name: c.name)
         case .playlist(let p): Router.shared.openPlaylist(id: p.id, title: p.title)
-        case .shorts: break
+        case .shorts, .text: break
         }
     }
 }

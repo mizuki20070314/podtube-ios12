@@ -28,6 +28,8 @@ func show(_ it: FeedItem) {
         print("  P \(p.id) \(p.title) | \(p.channelName) | \(p.videoCount) thumb=\(p.thumbnail.isEmpty ? "-" : "ok")")
     case .shorts(let l):
         print("  S shorts x\(l.count): " + l.prefix(3).map { $0.title }.joined(separator: " / "))
+    case .text(let t):
+        print("  T text (\(t.count) chars): " + t.prefix(80).replacingOccurrences(of: "\n", with: " "))
     }
 }
 

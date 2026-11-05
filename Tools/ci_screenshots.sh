@@ -50,6 +50,7 @@ shot 20_player_settings 14 -pt-theme dark -route "watch:$VID;wait:7;w:settings"
 shot 21_search_light 14 -pt-theme light -route "search:ホロライブ"
 shot 22_shorts_light 22 -pt-theme light -route "tab:1"
 shot 24_diag 26 -pt-theme dark -route "diag"
+shot 25_channel_about 20 -pt-theme dark -route "channel:UCuAXFkgsw1L7xaCfnd5JJOw;wait:7;channeltab:3"
 shot 23_chapters 18 -pt-theme dark -route "watch:aircAruvnKk;wait:8;w:chapters"
 
 xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true

@@ -76,6 +76,8 @@ enum DebugRoutes {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { vc.runForDebug() }
         case "comments": root.debugOpenComments()
         case "w": root.debugWatch(arg)
+        case "channeltab":
+            if let nav = root.currentNav.topViewController as? ChannelViewController { nav.debugSelectTab(Int(arg) ?? 0) }
         case "minimize": root.minimizeWatchIfNeeded()
         case "landscape": root.setLandscape(true)
         case "portrait": root.setLandscape(false)

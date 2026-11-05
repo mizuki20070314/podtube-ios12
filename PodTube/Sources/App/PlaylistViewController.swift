@@ -103,6 +103,8 @@ final class PlaylistViewController: FeedViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = titleText
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image("share_outline", size: 24), style: .plain,
+                                                            target: self, action: #selector(shareTapped))
         header.configure(title: titleText ?? "", meta: "")
         header.onPlay = { [weak self] in self?.playAll(shuffle: false) }
         header.onShuffle = { [weak self] in self?.playAll(shuffle: true) }
@@ -148,6 +150,10 @@ final class PlaylistViewController: FeedViewController {
 
     override func play(_ video: VideoItem) {
         Router.shared.play(video, queue: allVideos, playlistId: playlistId)
+    }
+
+    @objc private func shareTapped() {
+        if let u = URL(string: "https://www.youtube.com/playlist?list=\(playlistId)") { Router.shared.share(items: [u]) }
     }
 
     private func playAll(shuffle: Bool) {

@@ -220,6 +220,29 @@ enum Parse {
         return out
     }
 
+    /// Channel "About" tab: description, stats and links as one text block.
+    static func aboutText(_ root: JSON) -> String? {
+        guard let a = root.findFirst("channelAboutMetadataRenderer") else { return nil }
+        var blocks: [String] = []
+        let desc = a["description"].textValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !desc.isEmpty { blocks.append(desc) }
+        var stats: [String] = []
+        for key in ["joinedDateText", "viewCountText", "country"] {
+            let t = a[key].textValue
+            if !t.isEmpty { stats.append(t) }
+        }
+        if !stats.isEmpty { blocks.append(stats.joined(separator: "\n")) }
+        var links: [String] = []
+        for l in a["primaryLinks"].array {
+            let title = l["title"].textValue
+            let url = l["navigationEndpoint"]["urlEndpoint"]["url"].stringValue
+            if !url.isEmpty { links.append(title.isEmpty ? url : title + "\n" + url) }
+        }
+        if !links.isEmpty { blocks.append(links.joined(separator: "\n\n")) }
+        let out = blocks.joined(separator: "\n\n")
+        return out.isEmpty ? nil : out
+    }
+
     // MARK: - Watch page (`next`)
 
     static func watch(_ root: JSON, videoId: String) -> WatchInfo {

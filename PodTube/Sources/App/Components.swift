@@ -544,6 +544,53 @@ final class ShortsShelfCell: UITableViewCell, UICollectionViewDataSource, UIColl
     }
 }
 
+// MARK: - Plain text block (channel About)
+
+final class TextBlockCell: UITableViewCell, UITextViewDelegate {
+    static let reuseId = "TextBlockCell"
+    private let textView = UITextView()
+
+    static func height(_ text: String, width: CGFloat) -> CGFloat {
+        return TextMetrics.height(text, font: Theme.font(14), width: width - 32, maxLines: 0) + 40
+    }
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
+        textView.isEditable = false
+        textView.isScrollEnabled = false
+        textView.backgroundColor = .clear
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.dataDetectorTypes = .link
+        textView.delegate = self
+        contentView.addSubview(textView)
+    }
+
+    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(_ text: String) {
+        textView.font = Theme.font(14)
+        textView.textColor = Theme.text
+        textView.linkTextAttributes = [.foregroundColor: Theme.link]
+        textView.text = text
+        setNeedsLayout()
+    }
+
+    func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange,
+                  interaction: UITextItemInteraction) -> Bool {
+        UIApplication.shared.open(URL, options: [:], completionHandler: nil)
+        return false
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        textView.frame = CGRect(x: 16, y: 16, width: contentView.bounds.width - 32, height: max(0, contentView.bounds.height - 32))
+    }
+}
+
 // MARK: - Loading / error / empty
 
 final class LoadingCell: UITableViewCell {

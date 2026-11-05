@@ -70,9 +70,7 @@ final class ChannelHeaderView: UIView {
         subscribeButton.setSubscribed(Store.shared.isSubscribed(i.id))
         tabButtons.forEach { $0.removeFromSuperview() }
         tabButtons = []
-        // The "About" tab has no list content, so it is not offered.
-        let shownTabs = i.tabs.filter { !$0.params.hasPrefix("EgVhYm91d") }
-        for (idx, t) in shownTabs.enumerated() {
+        for (idx, t) in i.tabs.enumerated() {
             let b = UIButton(type: .custom)
             b.setTitle(t.title, for: .normal)
             b.titleLabel?.font = Theme.font(14, .medium)
@@ -162,6 +160,8 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = channelName
+        navigationItem.rightBarButtonItem = UIBarButtonItem(image: Icons.image("share_outline", size: 24), style: .plain,
+                                                            target: self, action: #selector(shareTapped))
         header.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: 160)
         header.onTab = { [weak self] i in self?.selectTab(i) }
         header.onSubscribe = { [weak self] in
@@ -173,6 +173,10 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
     }
 
     func scrollToTop() { tableView.setContentOffset(.zero, animated: true) }
+
+    @objc private func shareTapped() {
+        if let u = URL(string: "https://www.youtube.com/channel/\(channelId)") { Router.shared.share(items: [u]) }
+    }
 
     override var showsRefreshControl: Bool { return false }
 
@@ -246,6 +250,8 @@ final class ChannelViewController: FeedViewController, ScrollsToTop {
         }
         return out
     }
+
+    func debugSelectTab(_ i: Int) { selectTab(i) }
 
     private func selectTab(_ i: Int) {
         guard let inf = info, i < inf.tabs.count, i != tabIndex else { return }
