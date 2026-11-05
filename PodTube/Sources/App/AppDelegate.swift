@@ -141,6 +141,20 @@ enum DebugRoutes {
                 }
             }
             Router.shared.push(StoredListViewController(kind: .history))
+        case "seedhistory":
+            // a play of this app that the demo account does not list: it has to come out in front of the account's entries
+            var v = VideoItem(id: "M7lc1UVf-VE")
+            v.title = "このアプリで再生した動画（デモ）"
+            v.channelName = "デモチャンネル 99"
+            Store.shared.addHistory(v)
+        case "scroll":
+            // scrolls the feed on screen down by `arg` points (but not past its end)
+            if let feed = root.currentNav.topViewController as? FeedViewController {
+                let table = feed.tableView
+                let limit = max(0, table.contentSize.height - table.bounds.height + table.contentInset.bottom)
+                table.setContentOffset(CGPoint(x: 0, y: min(CGFloat(Double(arg) ?? 800), limit)), animated: false)
+            }
+        case "retap": root.selectTab(root.selectedIndex)
         case "accountplaylist":
             Router.shared.openPlaylist(id: arg, title: nil)
         default: break

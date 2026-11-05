@@ -101,6 +101,9 @@ shot 84_home_account 20 -pt-theme dark -pt-demo-account
 shot 86_subs_account 18 -pt-theme dark -pt-demo-account -route "tab:2"
 shot 85_library_account 10 -pt-theme dark -pt-demo-account -route "tab:3"
 shot 87_history_account 16 -pt-theme dark -pt-demo-account -route "tab:3;acctlist:history"
+shot 88_history_merged 16 -pt-theme dark -pt-demo-account -route "seedhistory;tab:3;acctlist:history"
+shot 89_home_scrolled 20 -pt-theme dark -route "wait:10;scroll:1400;wait:1"
+shot 90_home_retap 20 -pt-theme dark -route "wait:10;scroll:1400;wait:1;retap;wait:2"
 fi
 
 # Live streams (24/7 news channels): the player must start, or show the AVFoundation error.
