@@ -165,11 +165,8 @@ final class VideoCell: UITableViewCell {
         thumb.setRemote(v.thumbnail.isEmpty ? v.thumbnailURL?.absoluteString : v.thumbnail, maxPixel: 800)
         showsAvatar = !v.channelAvatar.isEmpty || reserveAvatar
         avatar.isHidden = !showsAvatar
-        if !v.channelAvatar.isEmpty {
-            avatar.setRemote(v.channelAvatar, maxPixel: 96, fade: false)
-        } else {
-            avatar.image = nil
-        }
+        // also with an empty url: invalidates a load that is still running for the row's previous video
+        avatar.setRemote(v.channelAvatar, maxPixel: 96, fade: false)
 
         if v.isLive {
             durationLabel.text = L10n.t("video.live")

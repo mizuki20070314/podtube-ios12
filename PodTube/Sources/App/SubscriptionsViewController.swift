@@ -183,6 +183,8 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     self.accountChannels = s.channels
+                    // the feed's rows only name their channel; the strip knows the icons (see ChannelDirectory)
+                    for c in s.channels { ChannelDirectory.shared.learn(c) }
                     self.strip.setChannels(self.stripChannels)
                     self.view.setNeedsLayout()
                     Store.shared.mergeSubscriptions(s.channels)
