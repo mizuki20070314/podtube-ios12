@@ -160,6 +160,7 @@ final class RootViewController: UIViewController, UINavigationControllerDelegate
     }
 
     func debugOpenComments() { watch.openComments() }
+    func debugWatch(_ command: String) { watch.debug(command) }
 
     func minimizeWatchIfNeeded() {
         if watch.isActive && watch.progress < 0.5 { watch.setMinimized(true, animated: true) }

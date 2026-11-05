@@ -879,7 +879,7 @@ final class SheetView: UIView {
             tl.text = a.title
             tl.font = Theme.font(16)
             tl.textColor = color
-            tl.tag = 1
+            tl.tag = 9001
             tl.isUserInteractionEnabled = false
             row.addSubview(tl)
             if let s = a.subtitle, !s.isEmpty {
@@ -887,14 +887,14 @@ final class SheetView: UIView {
                 sl.text = s
                 sl.font = Theme.font(12)
                 sl.textColor = Theme.secondaryText
-                sl.tag = 2
+                sl.tag = 9002
                 sl.isUserInteractionEnabled = false
                 row.addSubview(sl)
             }
             if a.checked {
                 let c = UIImageView(image: Icons.image("check", size: 22))
                 c.tintColor = Theme.text
-                c.tag = 3
+                c.tag = 9003
                 c.isUserInteractionEnabled = false
                 row.addSubview(c)
             }
@@ -925,15 +925,15 @@ final class SheetView: UIView {
             let hasIcon = actions[i].icon != nil
             let tx: CGFloat = hasIcon ? 60 : 16
             let tw = bounds.width - tx - 52
-            if let tl = row.viewWithTag(1) as? UILabel {
-                if let sl = row.viewWithTag(2) as? UILabel {
+            if let tl = row.viewWithTag(9001) as? UILabel {
+                if let sl = row.viewWithTag(9002) as? UILabel {
                     tl.frame = CGRect(x: tx, y: 9, width: tw, height: 21)
                     sl.frame = CGRect(x: tx, y: 31, width: tw, height: 16)
                 } else {
                     tl.frame = CGRect(x: tx, y: 0, width: tw, height: rowHeight)
                 }
             }
-            if let c = row.viewWithTag(3) {
+            if let c = row.viewWithTag(9003) {
                 c.frame = CGRect(x: bounds.width - 16 - 22, y: (rowHeight - 22) / 2, width: 22, height: 22)
             }
         }

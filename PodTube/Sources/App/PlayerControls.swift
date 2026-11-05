@@ -269,6 +269,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         }
     }
 
+    func debugShow() { setControlsVisible(true, animated: false); cancelHide() }
+
     // MARK: Actions
 
     @objc private func collapseTapped() { onCollapse?() }

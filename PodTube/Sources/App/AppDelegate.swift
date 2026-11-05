@@ -23,7 +23,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 /// Launch arguments used by the CI smoke test to drive the UI and take screenshots.
-///   -theme light|dark      -region JP|US      -route "watch:ID;wait:6;comments"
+///   -pt-theme light|dark   -pt-region JP|US   -route "watch:ID;wait:6;comments"
 enum DebugRoutes {
     private static func value(for key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
@@ -32,9 +32,9 @@ enum DebugRoutes {
     }
 
     static func applyEarlyArguments() {
-        if let t = value(for: "-theme") { UserDefaults.standard.set(t == "light" ? 1 : 0, forKey: "theme") }
-        if let r = value(for: "-region") { UserDefaults.standard.set(r, forKey: "contentRegion") }
-        if let l = value(for: "-uilang") { UserDefaults.standard.set(l, forKey: "uiLanguage") }
+        if let t = value(for: "-pt-theme") { UserDefaults.standard.set(t == "light" ? 1 : 0, forKey: "theme") }
+        if let r = value(for: "-pt-region") { UserDefaults.standard.set(r, forKey: "contentRegion") }
+        if let l = value(for: "-pt-lang") { UserDefaults.standard.set(l, forKey: "uiLanguage") }
     }
 
     static func runIfRequested(root: RootViewController) {
@@ -64,6 +64,7 @@ enum DebugRoutes {
         case "playlist": Router.shared.openPlaylist(id: arg)
         case "settings": Router.shared.openSettings()
         case "comments": root.debugOpenComments()
+        case "w": root.debugWatch(arg)
         case "minimize": root.minimizeWatchIfNeeded()
         case "landscape": root.setLandscape(true)
         case "portrait": root.setLandscape(false)

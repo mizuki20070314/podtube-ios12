@@ -76,6 +76,19 @@ final class Store {
         changed()
     }
 
+    /// Fills in title / channel of an entry that was created from a bare id.
+    func updateHistoryVideo(_ video: VideoItem) {
+        guard let i = history.firstIndex(where: { $0.video.id == video.id }) else { return }
+        var v = history[i].video
+        if !video.title.isEmpty { v.title = video.title }
+        if !video.channelName.isEmpty { v.channelName = video.channelName }
+        if !video.channelId.isEmpty { v.channelId = video.channelId }
+        if !video.channelAvatar.isEmpty { v.channelAvatar = video.channelAvatar }
+        if !video.thumbnail.isEmpty { v.thumbnail = video.thumbnail }
+        history[i].video = v
+        save(history, as: "history.json")
+    }
+
     func updateProgress(videoId: String, position: Double, duration: Double) {
         guard let i = history.firstIndex(where: { $0.video.id == videoId }) else { return }
         history[i].position = position

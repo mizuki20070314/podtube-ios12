@@ -1,7 +1,7 @@
 import UIKit
 
 /// Home tab: app bar, topic chips and the recommendation feed.
-final class HomeViewController: FeedViewController {
+final class HomeViewController: FeedViewController, HidesNavigationBar {
     private let appBar = AppBarView()
     private let chipBar = ChipBar()
 

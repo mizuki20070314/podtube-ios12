@@ -6,7 +6,16 @@
 #   Tools/ci.sh download [id] [name] [dir] - download an artifact
 export PATH="/c/Users/mizuk/tools/gh/bin:$PATH"
 CMD=${1:-status}
-ID=${2:-$(gh run list --limit 1 --json databaseId -q '.[0].databaseId')}
+head_run() {
+  # id of the workflow run for the current HEAD commit (waits a little for it to be created)
+  local sha; sha=$(git rev-parse HEAD)
+  for i in $(seq 1 40); do
+    local id; id=$(gh run list --commit "$sha" --limit 1 --json databaseId -q '.[0].databaseId' 2>/dev/null)
+    if [ -n "$id" ]; then echo "$id"; return; fi
+    sleep 4
+  done
+}
+ID=${2:-$(head_run)}
 case "$CMD" in
   status)
     gh run view "$ID" --json status,conclusion,jobs -q '"run '"$ID"': " + .status + " " + (.conclusion // "") + "\n" + (.jobs[] | .name + ": " + .status + " " + (.conclusion // "") + "\n" + (.steps | map("   " + .name + " [" + .status + " " + (.conclusion // "") + "]") | join("\n")))'

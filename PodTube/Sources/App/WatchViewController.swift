@@ -12,6 +12,7 @@ final class WatchContentViewController: FeedViewController {
     private(set) var firstComments: CommentPage?
     var onOpenComments: (() -> Void)?
     var onSeek: ((Double) -> Void)?
+    var onLoaded: ((VideoItem) -> Void)?
 
     override var showsRefreshControl: Bool { return false }
 
@@ -90,6 +91,10 @@ final class WatchContentViewController: FeedViewController {
         info = w
         header.configure(info: w)
         updateHeader()
+        if let merged = header.video {
+            onLoaded?(merged)
+            Store.shared.updateHistoryVideo(merged)
+        }
         var next: [VideoItem] = []
         if let a = w.autoplay { next.append(a) }
         next.append(contentsOf: w.related.videos)
@@ -253,6 +258,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
 
         content.onOpenComments = { [weak self] in self?.openComments() }
         content.onSeek = { seconds in PlayerManager.shared.seek(to: seconds) }
+        content.onLoaded = { [weak self] v in self?.miniBar.configure(v) }
         miniBar.onPlayPause = { PlayerManager.shared.toggle() }
         miniBar.onClose = { [weak self] in self?.closePlayer() }
         controls.onCollapse = { [weak self] in self?.setMinimized(true, animated: true) }
@@ -502,6 +508,22 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
             return true
         }
         return false
+    }
+
+    /// CI screenshot helper (see DebugRoutes).
+    func debug(_ command: String) {
+        switch command {
+        case "controls": controls.debugShow()
+        case "expand": content.header.expandDescription()
+        case "captions":
+            let sc = SubtitleController.shared
+            if let t = sc.tracks.first(where: { $0.languageCode.hasPrefix("en") }) ?? sc.tracks.first { sc.select(t) }
+        case "settings": showSettings()
+        case "quality": showQuality()
+        case "speed": showSpeed()
+        case "seek60": PlayerManager.shared.seek(to: 60)
+        default: break
+        }
     }
 
     // MARK: Player menus

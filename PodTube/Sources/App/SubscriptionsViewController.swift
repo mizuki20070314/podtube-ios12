@@ -109,6 +109,8 @@ final class SubscriptionsViewController: FeedViewController, HidesNavigationBar,
     }
 
     override var emptyTitle: String { return L10n.t("subs.empty") }
+    override var emptyIcon: String { return "subscriptions" }
+    override var emptyDetail: String? { return L10n.t("subs.emptyHint") }
 
     override func viewDidLoad() {
         super.viewDidLoad()

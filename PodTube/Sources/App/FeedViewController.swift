@@ -18,6 +18,8 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     // MARK: Subclass hooks
 
     var emptyTitle: String { return L10n.t("common.empty") }
+    var emptyIcon: String { return "search" }
+    var emptyDetail: String? { return nil }
     var showsRefreshControl: Bool { return true }
     /// Area (inside `view`) that the list occupies; subclasses reserve space for their own bars.
     var listFrame: CGRect { return view.bounds }
@@ -126,7 +128,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                     self.hasLoadedOnce = true
                     self.didReceiveFirstPage(page)
                     if self.items.isEmpty {
-                        self.stateView.show(icon: "search", title: self.emptyTitle)
+                        self.stateView.show(icon: self.emptyIcon, title: self.emptyTitle, detail: self.emptyDetail)
                     } else {
                         self.stateView.hide()
                     }
@@ -161,7 +163,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         append(page)
         hasLoadedOnce = true
         if items.isEmpty {
-            stateView.show(icon: "search", title: emptyTitle)
+            stateView.show(icon: emptyIcon, title: emptyTitle, detail: emptyDetail)
         } else {
             stateView.hide()
         }

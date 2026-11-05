@@ -313,6 +313,8 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
 
     // MARK: Actions
 
+    func expandDescription() { if !expanded { toggleExpanded() } }
+
     @objc private func toggleExpanded() {
         expanded = !expanded
         if let i = info {

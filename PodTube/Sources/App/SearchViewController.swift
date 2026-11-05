@@ -1,7 +1,7 @@
 import UIKit
 
 /// Search entry screen: text field + history / live suggestions.
-final class SearchViewController: UIViewController, UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate {
+final class SearchViewController: UIViewController, HidesNavigationBar, UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate {
     private let topBar = UIView()
     private let backButton = IconButton(icon: "arrow_back")
     private let fieldBackground = UIView()
@@ -222,7 +222,7 @@ final class SuggestionCell: UITableViewCell {
 
 // MARK: - Search results
 
-final class SearchResultsViewController: FeedViewController {
+final class SearchResultsViewController: FeedViewController, HidesNavigationBar {
     private let query: String
     private var filter = SearchFilter()
     private let topBar = UIView()
