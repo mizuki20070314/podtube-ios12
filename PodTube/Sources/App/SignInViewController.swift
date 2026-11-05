@@ -42,6 +42,8 @@ final class SignInViewController: UIViewController {
     private var interval: TimeInterval = 5
     private var generation = 0
     private var finished = false
+    private var qrText = "https://www.google.com/device"
+    private var qrSide: CGFloat = 0
     /// CI screenshots: a fixed code and no network.
     private let demoCode: DeviceCode?
 
@@ -78,7 +80,6 @@ final class SignInViewController: UIViewController {
         qrView.contentMode = .scaleAspectFit
         qrView.layer.cornerRadius = 8
         qrView.clipsToBounds = true
-        qrView.image = QRCode.image("https://www.google.com/device", side: 150)
         copyButton.addTarget(self, action: #selector(copyTapped), for: .touchUpInside)
         openButton.addTarget(self, action: #selector(openTapped), for: .touchUpInside)
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
@@ -93,7 +94,15 @@ final class SignInViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive),
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(miniPlayerChanged), name: .miniPlayerChanged, object: nil)
+        miniPlayerChanged()
         start()
+    }
+
+    @objc private func miniPlayerChanged() {
+        let inset = Router.shared.root?.miniPlayerInset ?? 0
+        scroll.contentInset.bottom = inset
+        scroll.scrollIndicatorInsets.bottom = inset
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }
@@ -125,7 +134,10 @@ final class SignInViewController: UIViewController {
         let x0 = (view.bounds.width - w) / 2
         let pad: CGFloat = 20
         let tw = w - pad * 2
-        var y: CGFloat = 16
+        // a 320x568 iPod touch leaves ~450 pt for this page: tighten it so the code is on the first screen
+        let compact = tw < 320 || view.bounds.height < 600
+        let side: CGFloat = compact ? 112 : 150
+        var y: CGFloat = compact ? 8 : 16
 
         func place(_ label: UILabel) {
             let h = TextMetrics.height(label.text ?? "", font: label.font, width: tw, maxLines: 0)
@@ -134,24 +146,29 @@ final class SignInViewController: UIViewController {
         }
 
         place(introLabel)
-        y += 18
+        y += compact ? 10 : 18
         place(step1Label)
-        y += 4
-        urlButton.frame = CGRect(x: x0 + pad, y: y, width: tw, height: 40)
+        y += compact ? 0 : 4
+        urlButton.frame = CGRect(x: x0 + pad, y: y, width: tw, height: compact ? 36 : 40)
         urlButton.contentHorizontalAlignment = .left
-        y += 44
-        qrView.frame = CGRect(x: x0 + pad, y: y, width: 150, height: 150)
-        let bw = min(tw - 150 - 16, 170)
+        y += compact ? 36 : 44
+        if qrSide != side {
+            qrSide = side
+            qrView.image = QRCode.image(qrText, side: side)
+        }
+        qrView.frame = CGRect(x: x0 + pad, y: y, width: side, height: side)
+        let ow = min(openButton.sizeThatFits(.zero).width, tw - side - 14)
         copyButton.isHidden = false
-        openButton.frame = CGRect(x: x0 + pad + 166, y: y + 20, width: max(bw, 120), height: 36)
-        y += 150 + 20
+        openButton.frame = CGRect(x: x0 + pad + side + 14, y: y + (compact ? 10 : 20), width: ow, height: 36)
+        y += side + (compact ? 10 : 20)
         place(step2Label)
-        y += 8
-        codeLabel.frame = CGRect(x: x0 + pad, y: y, width: tw, height: 72)
-        y += 72 + 10
+        y += compact ? 6 : 8
+        let codeH: CGFloat = compact ? 60 : 72
+        codeLabel.frame = CGRect(x: x0 + pad, y: y, width: tw, height: codeH)
+        y += codeH + (compact ? 8 : 10)
         let cw = copyButton.sizeThatFits(.zero).width
         copyButton.frame = CGRect(x: x0 + pad, y: y, width: cw, height: 36)
-        y += 36 + 18
+        y += 36 + (compact ? 12 : 18)
         place(statusLabel)
         spinner.frame = CGRect(x: x0 + w / 2 - 10, y: y + 4, width: 20, height: 20)
         y += 32
@@ -177,7 +194,8 @@ final class SignInViewController: UIViewController {
         interval = max(c.interval, 3)
         codeLabel.text = c.userCode
         urlButton.setTitle(c.verificationURL.replacingOccurrences(of: "https://", with: ""), for: .normal)
-        qrView.image = QRCode.image(c.verificationURL, side: 150)
+        qrText = c.verificationURL
+        qrSide = 0 // redrawn by the next layout pass
         setStatus(L10n.t("signin.waiting"), busy: true)
     }
 
