@@ -13,7 +13,31 @@ extension Notification.Name {
 final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     static let shared = PictureInPicture()
 
-    static var isSupported: Bool { return AVPictureInPictureController.isPictureInPictureSupported() }
+    /// Jailbroken devices where ForceInPicture is loaded into the app but its MobileGestalt hook did not take
+    /// (seen on an iPod touch 6 / iOS 12.5.7: the Objective-C hook applied, the function hook did not). There
+    /// the app answers AVKit's "is PiP supported" itself, with the Objective-C runtime; this is only tried when
+    /// the OS says no and a ForceInPicture library is inside the process.
+    private(set) static var overrideApplied = false
+
+    private static let installOverride: Void = {
+        var tweak = false
+        for i in 0..<_dyld_image_count() {
+            if let p = _dyld_get_image_name(i), String(cString: p).lowercased().contains("forceinpicture") { tweak = true }
+        }
+        guard tweak, !AVPictureInPictureController.isPictureInPictureSupported(),
+              let m = class_getClassMethod(AVPictureInPictureController.self, NSSelectorFromString("isPictureInPictureSupported")) else { return }
+        let yes: @convention(block) (AnyObject) -> Bool = { _ in true }
+        method_setImplementation(m, imp_implementationWithBlock(yes))
+        overrideApplied = true
+    }()
+
+    /// With the override, the button is only offered if AVKit then really hands out a controller.
+    private static let overrideWorks: Bool = AVPictureInPictureController(playerLayer: AVPlayerLayer()) != nil
+
+    static var isSupported: Bool {
+        _ = installOverride
+        return overrideApplied ? overrideWorks : AVPictureInPictureController.isPictureInPictureSupported()
+    }
 
     private static func imageName(of p: UnsafeRawPointer) -> String {
         var info = Dl_info()
@@ -25,6 +49,9 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     /// are inside this process at all, and what MobileGestalt answers for the key ForceInPicture rewrites.
     static func diagnosis() -> [String] {
         var lines: [String] = []
+        _ = installOverride
+        lines.append("PodTube's own override of AVKit's PiP check: " + (overrideApplied ? "applied" : "not applied")
+                     + (overrideApplied ? (overrideWorks ? " (AVKit then creates the controller)" : " (AVKit still refuses to create the controller)") : ""))
         var u = utsname()
         _ = uname(&u)
         let model = withUnsafePointer(to: &u.machine) {
