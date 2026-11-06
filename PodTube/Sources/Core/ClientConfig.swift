@@ -36,7 +36,7 @@ enum ClientOverrides {
             var parsed: [String: [String: String]] = [:]
             for client in json.keys {
                 var entry: [String: String] = [:]
-                for field in ["clientVersion", "userAgent", "osVersion"] {
+                for field in ["clientVersion", "userAgent", "osVersion", "signatureTimestamp"] {
                     if let s = json[client][field].string, !s.isEmpty { entry[field] = s }
                 }
                 if !entry.isEmpty { parsed[client] = entry }
@@ -52,7 +52,7 @@ enum ClientOverrides {
 }
 
 extension ClientProfile {
-    /// Applies the overrides stored for `id` ("visionos", "ios", "android_vr").
+    /// Applies the overrides stored for `id` ("visionos", "ios", "android_vr", "tv", "tv_samsung").
     func overridden(_ id: String) -> ClientProfile {
         guard let o = ClientOverrides.values[id] else { return self }
         var newExtra = extra

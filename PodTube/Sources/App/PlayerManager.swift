@@ -132,6 +132,7 @@ final class PlayerManager: NSObject {
     // MARK: Playing
 
     func play(_ video: VideoItem, queue newQueue: [VideoItem]? = nil, playlistId: String? = nil) {
+        PlayHistoryReporter.shared.finished(position: currentTime) // the play that this one replaces
         if let q = newQueue {
             queue = q
             queueIndex = q.firstIndex(where: { $0.id == video.id }) ?? -1
@@ -300,10 +301,17 @@ final class PlayerManager: NSObject {
             if let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible) {
                 item.select(nil, in: group)
             }
+            var startAt = currentTime
             if let v = video, let pos = Store.shared.resumePosition(for: v.id), !isLive, currentTime < 1 {
                 player.seek(to: CMTime(seconds: pos, preferredTimescale: 600))
+                startAt = pos
             }
-            if let v = video { Store.shared.addHistory(v, position: currentTime, duration: duration) }
+            if let v = video {
+                Store.shared.addHistory(v, position: currentTime, duration: duration)
+                if !Settings.pauseHistory {
+                    PlayHistoryReporter.shared.started(videoId: v.id, position: startAt, reportsWatchTime: !isLive)
+                }
+            }
             if wantsPlay { play() }
             updateNowPlaying()
         case .failed:
@@ -322,6 +330,7 @@ final class PlayerManager: NSObject {
             play()
             return
         }
+        PlayHistoryReporter.shared.finished(position: duration)
         if sleepAtEnd {
             sleepAtEnd = false
             state = .ended
@@ -459,6 +468,7 @@ final class PlayerManager: NSObject {
     }
 
     func stop() {
+        PlayHistoryReporter.shared.finished(position: currentTime)
         generation += 1
         tearDownItem()
         player.pause()

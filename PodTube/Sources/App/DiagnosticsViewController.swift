@@ -68,7 +68,28 @@ final class DiagnosticsViewController: UIViewController {
         append("\(ok ? "OK " : "NG ") \(label) \(ms)ms \(detail)")
     }
 
+    /// The last step of the chain: when signed in, checks that the statistics URLs of the account (what records a play
+    /// in the watch history) can still be obtained. Only asks for them; nothing is sent to the history.
     private func done() {
+        guard AuthSession.shared.isSignedIn, AccountDemo.responder == nil else {
+            finish()
+            return
+        }
+        let t = Date()
+        InnerTube.shared.accountPlaybackTracking(videoId: "dQw4w9WgXcQ") { [weak self] r in
+            DispatchQueue.main.async {
+                switch r {
+                case .success(let tracking):
+                    self?.report("account history tracking", t, true, "uga=\(tracking.playbackURL.absoluteString.contains("uga="))")
+                case .failure(let e):
+                    self?.report("account history tracking", t, false, e.localizedDescription)
+                }
+                self?.finish()
+            }
+        }
+    }
+
+    private func finish() {
         running = false
         runButton.alpha = 1
         append("")

@@ -22,6 +22,9 @@ enum Clients {
     static var ios: ClientProfile { return iosBase.overridden("ios") }
     /// The only client Google accepts OAuth bearer tokens for (everything account related goes through it).
     static var tv: ClientProfile { return tvBase.overridden("tv") }
+    /// The TV client as a Samsung (Tizen) TV presents itself. `player` answers it when a bearer token is attached (the
+    /// generic Cobalt TV identity of `tv` is refused), and the response carries statistics URLs bound to the account.
+    static var tvSamsung: ClientProfile { return tvSamsungBase.overridden("tv_samsung") }
 
     private static let tvBase = ClientProfile(
         name: "TVHTML5",
@@ -29,6 +32,18 @@ enum Clients {
         numericId: 7,
         userAgent: OAuthConfig.tvUserAgent,
         extra: [:])
+
+    private static let tvSamsungBase = ClientProfile(
+        name: "TVHTML5",
+        version: "5.20260707",
+        numericId: 7,
+        userAgent: "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1",
+        extra: [
+            "deviceMake": "Samsung",
+            "deviceModel": "UKS9800",
+            "osName": "Tizen",
+            "osVersion": "2.4.0"
+        ])
 
     private static let visionOSBase = ClientProfile(
         name: "VISIONOS",

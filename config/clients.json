@@ -8,5 +8,9 @@
   },
   "android_vr": {
     "clientVersion": "1.65.10"
+  },
+  "tv_samsung": {
+    "clientVersion": "5.20260707",
+    "signatureTimestamp": "20760"
   }
 }

@@ -110,6 +110,7 @@ final class Account {
 
     /// After the device code was approved: name / avatar and the channels that can be mirrored locally.
     func didSignIn() {
+        PlayHistoryReporter.shared.reset()
         refreshProfile()
         InnerTube.shared.accountSubscriptions { r in
             if case .success(let s) = r { DispatchQueue.main.async { Store.shared.mergeSubscriptions(s.channels) } }

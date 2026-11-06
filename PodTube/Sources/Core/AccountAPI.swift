@@ -21,11 +21,12 @@ extension InnerTube {
     // MARK: Authenticated transport
 
     /// POST as the signed-in account (TV client + bearer token). A 401 refreshes the token and retries once.
-    func postAuthed(_ endpoint: String, body: [String: Any], completion: @escaping (Result<JSON, Error>) -> Void) {
-        sendAuthed(endpoint, body: body, retried: false, completion: completion)
+    func postAuthed(_ endpoint: String, body: [String: Any], profile: ClientProfile = Clients.tv,
+                    completion: @escaping (Result<JSON, Error>) -> Void) {
+        sendAuthed(endpoint, body: body, profile: profile, retried: false, completion: completion)
     }
 
-    private func sendAuthed(_ endpoint: String, body: [String: Any], retried: Bool,
+    private func sendAuthed(_ endpoint: String, body: [String: Any], profile: ClientProfile, retried: Bool,
                             completion: @escaping (Result<JSON, Error>) -> Void) {
         if let canned = AccountDemo.responder?(endpoint, body) {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.15) { completion(.success(canned)) }
@@ -41,13 +42,13 @@ extension InnerTube {
                     completion(.failure(e))
                 }
             case .success(let token):
-                self.post(endpoint, body: body, profile: Clients.tv, extraHeaders: ["Authorization": "Bearer " + token]) { r in
+                self.post(endpoint, body: body, profile: profile, extraHeaders: ["Authorization": "Bearer " + token]) { r in
                     if case .failure(let err) = r, InnerTube.isUnauthorized(err) {
                         if retried {
                             completion(.failure(InnerTubeError.authRequired))
                         } else {
                             AuthSession.shared.invalidateAccessToken()
-                            self.sendAuthed(endpoint, body: body, retried: true, completion: completion)
+                            self.sendAuthed(endpoint, body: body, profile: profile, retried: true, completion: completion)
                         }
                         return
                     }

@@ -369,6 +369,50 @@ case "a-chan":
     case .failure(let e): fail(e)
     }
 
+case "a-track":
+    // Account-bound statistics URLs of a video (read-only): which parameters they carry, nothing else is printed.
+    let tid = args.count > 1 ? args[1] : "jNQXAC9IVRw"
+    switch wait({ tub.accountPlaybackTracking(videoId: tid, $0) }) {
+    case .success(let t):
+        func names(_ u: URL?) -> String {
+            guard let u = u, let c = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return "-" }
+            return (c.host ?? "?") + " " + (c.queryItems ?? []).map { $0.name }.sorted().joined(separator: ",")
+        }
+        print("playback : \(names(t.playbackURL))")
+        print("watchtime: \(names(t.watchtimeURL))")
+        print("account-bound (uga): \(t.playbackURL.absoluteString.contains("uga="))  sts used: \(SignatureTimestamp.current)")
+    case .failure(let e): fail(e)
+    }
+
+case "a-played":
+    // WRITES TO THE ACCOUNT'S WATCH HISTORY (test videos only): the playback ping, then a watch-time ping of N seconds.
+    let pid = args.count > 1 ? args[1] : "jNQXAC9IVRw"
+    let watched = args.count > 2 ? (Double(args[2]) ?? 30) : 30
+    switch wait({ tub.accountPlaybackTracking(videoId: pid, $0) }) {
+    case .success(let t):
+        let cpn = InnerTube.newCpn()
+        let a = wait({ r in tub.reportPlayed(t, cpn: cpn, position: 0) { r(.success($0)) } })
+        print("playback ping sent:", a)
+        if case .success(true) = a, watched > 0 {
+            let b = wait({ r in tub.reportWatched(t, cpn: cpn, from: 0, to: watched) { r(.success($0)) } })
+            print("watch-time ping sent:", b)
+        }
+    case .failure(let e): fail(e)
+    }
+
+case "a-session":
+    // WRITES TO THE ACCOUNT'S WATCH HISTORY (test videos only): a play through PlayHistoryReporter, as the app does it.
+    // a-session <videoId> <watchedSeconds> [fast]   "fast" ends the play before the tracking answer can arrive.
+    let sid = args.count > 1 ? args[1] : "jNQXAC9IVRw"
+    let secs = args.count > 2 ? (Double(args[2]) ?? 20) : 20
+    PlayHistoryReporter.shared.started(videoId: sid, position: 0)
+    if args.count > 3 && args[3] == "fast" { PlayHistoryReporter.shared.finished(position: secs) } else {
+        Thread.sleep(forTimeInterval: 5)
+        PlayHistoryReporter.shared.finished(position: secs)
+    }
+    Thread.sleep(forTimeInterval: 6) // the pings are sent in the background
+    print("session done (check the history for \(sid))")
+
 case "a-state":
     let id = args.count > 1 ? args[1] : "dQw4w9WgXcQ"
     switch wait({ tub.accountWatchState(videoId: id, $0) }) {
@@ -380,5 +424,5 @@ default:
     print("commands: home | search q [channel|playlist|video|date] [more] | suggest q | watch id [playlist] | comments id | channel id [tabIndex] | playlist id | play id | shorts seed")
     print("home-fresh [rounds] [minFresh]: anonymous Home refreshed repeatedly (seen videos go behind new ones)")
     print("sign-in: login-test (anonymous: requests a device code and polls once)")
-    print("account (PT_TOKEN_FILE): a-whoami | a-home | a-subs | a-channels | a-browse id [more] | a-playlist id [more] | a-chan id | a-state videoId")
+    print("account (PT_TOKEN_FILE): a-whoami | a-home | a-subs | a-channels | a-browse id [more] | a-playlist id [more] | a-chan id | a-state videoId | a-track videoId | a-played videoId [seconds] | a-session videoId seconds [fast] (the last two write history!)")
 }
