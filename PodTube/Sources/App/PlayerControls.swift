@@ -601,7 +601,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         let supported = PictureInPicture.isSupported
         if pipButton.isHidden == supported { pipButton.isHidden = !supported; setNeedsLayout() }
         let usable = pip.isPossible || pip.isActive
-        pipButton.isEnabled = usable
+        pipButton.isEnabled = usable || PictureInPicture.overrideApplied
         pipButton.alpha = (chromeVisible ? 1 : 0) * (usable ? 1 : 0.35)
     }
 

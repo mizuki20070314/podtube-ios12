@@ -85,13 +85,16 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
             }
             lines.append("\(cls) \(sel) is implemented in " + imageName(of: unsafeBitCast(method_getImplementation(m), to: UnsafeRawPointer.self)))
         }
+        let b = PictureInPicture.shared
+        lines.append("controller bound to the player: " + (b.controller == nil ? "no (play a video first)" : "yes, possible = \(b.isPossible)"))
         lines.append("AVPictureInPictureController(playerLayer:) → " + (AVPictureInPictureController(playerLayer: AVPlayerLayer()) == nil ? "nil" : "created"))
         return lines
     }
 
-    private var controller: AVPictureInPictureController?
+    fileprivate var controller: AVPictureInPictureController?
     private var possibleObserver: NSKeyValueObservation?
     private var starting = false
+    private var failedShown = false
 
     /// The PiP window is up: the watch screen steps aside so the app underneath can be used.
     var onStarted: (() -> Void)?
@@ -118,8 +121,18 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     }
 
     func start() {
-        guard let c = controller, !c.isPictureInPictureActive, c.isPictureInPicturePossible else { return }
+        guard let c = controller, !c.isPictureInPictureActive else { return }
+        // normally only when AVKit says it is possible; with the override the attempt is made anyway, so the reason shows
+        guard c.isPictureInPicturePossible || PictureInPicture.overrideApplied else { return }
+        let wasPossible = c.isPictureInPicturePossible
+        failedShown = false
         c.startPictureInPicture()
+        if !wasPossible {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self = self, !self.isActive, !self.failedShown else { return }
+                Toast.show("PiP: AVKit says it is not possible, and gave no error")
+            }
+        }
     }
 
     func stop() {
@@ -147,8 +160,10 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController,
                                     failedToStartPictureInPictureWithError error: Error) {
         starting = false
+        failedShown = true
         changed()
-        Toast.show(L10n.t("pip.failed"))
+        let e = error as NSError
+        Toast.show(L10n.t("pip.failed") + " (\(e.domain) \(e.code))")
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
