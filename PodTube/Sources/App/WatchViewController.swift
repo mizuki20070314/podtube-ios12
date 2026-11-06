@@ -277,6 +277,11 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         controls.onSettings = { [weak self] in self?.showSettings() }
         controls.onCaptions = { [weak self] in self?.showCaptions() }
+        controls.onPictureInPicture = { PictureInPicture.shared.toggle() }
+        // PiP: once its window is up the watch screen steps aside; "back to app" in that window brings it back
+        PictureInPicture.shared.bind(to: playerView.playerLayer)
+        PictureInPicture.shared.onStarted = { [weak self] in self?.setMinimized(true, animated: true) }
+        PictureInPicture.shared.onRestore = { [weak self] in self?.setMinimized(false, animated: true) }
 
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
         pan.delegate = self
@@ -360,6 +365,8 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     // MARK: Presentation
 
     func start(video: VideoItem, queue: [VideoItem]?, playlistId: String?) {
+        // a new video goes to the inline player, not to a PiP window left over from the old one
+        PictureInPicture.shared.stop()
         let wasActive = isActive
         isActive = true
         view.isHidden = false
@@ -403,6 +410,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     func closePlayer() {
+        PictureInPicture.shared.stop()
         PlayerManager.shared.stop()
         SubtitleController.shared.clear()
         isActive = false
@@ -534,6 +542,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         case "seek60": PlayerManager.shared.seek(to: 60)
         case "chapters": showChapters()
         case "stats": PlayerManager.shared.showsStats = true
+        case "pip": PictureInPicture.shared.start()
         default: break
         }
     }

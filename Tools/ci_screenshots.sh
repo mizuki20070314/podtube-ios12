@@ -13,10 +13,18 @@ mkdir -p "$OUT"
 
 xcrun simctl install "$UDID" "$APP"
 
+# is a shot selected by the filter (comma-separated substrings of the names)?
+want() {
+  [ -z "$FILTER" ] && return 0
+  local f
+  for f in ${FILTER//,/ }; do [[ "$1" == *"$f"* ]] && return 0; done
+  return 1
+}
+
 # name, seconds to wait, launch args...
 shot() {
   local name="$1"; local wait="$2"; shift 2
-  if [ -n "$FILTER" ] && [[ "$name" != *"$FILTER"* ]]; then return; fi
+  want "$name" || return
   echo "=== $name"
   xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
   xcrun simctl launch "$UDID" "$BUNDLE" -AppleLanguages "(ja)" -AppleLocale ja_JP "$@" || echo "launch failed"
@@ -29,6 +37,24 @@ shot() {
 }
 
 VID=dQw4w9WgXcQ
+
+# Picture in Picture has to outlive the app leaving the foreground (Settings is opened on top of it here). Only on the iPad:
+# the iPhone simulators say the OS has no PiP. Two frames a few seconds apart, so that a picture that moves on can be told
+# from one that froze.
+pip_background() {
+  local name=59_pip_background
+  want "$name" || return
+  xcrun simctl list devices | grep "$UDID" | grep -q iPad || return
+  echo "=== $name"
+  xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+  xcrun simctl launch "$UDID" "$BUNDLE" -AppleLanguages "(ja)" -AppleLocale ja_JP -pt-theme dark -route "watch:$VID;wait:9;w:controls;w:pip;wait:3" || echo "launch failed"
+  sleep 18
+  xcrun simctl launch "$UDID" com.apple.Preferences || echo "launch of Settings failed"
+  sleep 4
+  xcrun simctl io "$UDID" screenshot "$OUT/${name}_a.png" || echo "screenshot failed"
+  sleep 4
+  xcrun simctl io "$UDID" screenshot "$OUT/${name}_b.png" || echo "screenshot failed"
+}
 
 if [ "$SET" = "full" ]; then
 shot 01_home_dark 16 -pt-theme dark
@@ -68,6 +94,11 @@ shot 35_stats 16 -pt-theme dark -route "watch:$VID;wait:9;w:stats"
 shot 36_stats_320 18 -pt-theme dark -pt-size 320x568 -route "watch:$VID;wait:9;w:stats;w:controls"
 shot 37_stats_landscape 22 -pt-theme dark -route "watch:$VID;wait:9;w:stats;landscape;wait:3"
 
+# Picture in Picture: the button (only where the OS offers PiP; the simulators are iOS 18, so it shows), then the PiP window itself.
+shot 38_pip_button 14 -pt-theme dark -route "watch:$VID;wait:7;w:controls"
+shot 39_pip_button_320 16 -pt-theme dark -pt-size 320x568 -route "watch:$VID;wait:7;w:controls"
+shot 58_pip_active 22 -pt-theme dark -route "watch:$VID;wait:9;w:controls;w:pip;wait:4"
+
 # Google sign-in. The signed-in screens run on canned data (-pt-demo-account), never on a real account.
 shot 40_signin 6 -pt-theme dark -route "signin"
 shot 41_signin_light 6 -pt-theme light -route "signin"
@@ -95,6 +126,9 @@ shot 72_watch_controls 14 -pt-theme dark -route "watch:$VID;wait:7;w:controls"
 shot 73_comments 22 -pt-theme dark -route "watch:$VID;wait:9;comments"
 shot 74_landscape 22 -pt-theme dark -route "watch:$VID;wait:9;landscape;wait:3"
 shot 75_mini 18 -pt-theme dark -route "watch:$VID;wait:9;minimize;wait:2"
+shot 91_pip_active 22 -pt-theme dark -route "watch:$VID;wait:9;w:controls;w:pip;wait:4"
+shot 92_pip_button 14 -pt-theme dark -route "watch:$VID;wait:7;w:controls"
+pip_background
 shot 76_search 14 -pt-theme dark -route "search:猫"
 shot 77_channel 14 -pt-theme dark -route "channel:UCuAXFkgsw1L7xaCfnd5JJOw"
 shot 78_shorts 22 -pt-theme dark -route "tab:1"

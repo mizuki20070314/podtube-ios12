@@ -8,16 +8,25 @@ final class PlayerView: UIView {
     override class var layerClass: AnyClass { return AVPlayerLayer.self }
 
     var playerLayer: AVPlayerLayer { return layer as! AVPlayerLayer }
+    private let pipLabel = UILabel()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
         playerLayer.videoGravity = .resizeAspect
+        pipLabel.text = L10n.t("pip.active")
+        pipLabel.font = Theme.font(13, .medium)
+        pipLabel.textColor = UIColor(white: 1, alpha: 0.7)
+        pipLabel.textAlignment = .center
+        pipLabel.numberOfLines = 2
+        pipLabel.isHidden = true
+        addSubview(pipLabel)
         playerLayer.player = PlayerManager.shared.player
         NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground),
                                                name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground),
                                                name: UIApplication.willEnterForegroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(pipChanged), name: .pipChanged, object: nil)
     }
 
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -26,11 +35,22 @@ final class PlayerView: UIView {
 
     /// Audio keeps playing in the background only if the video layer lets go of the player.
     @objc private func didEnterBackground() {
+        // the PiP window keeps drawing the video and playing its sound: leave the player alone
+        if PictureInPicture.shared.isActive { return }
         if Settings.backgroundPlay && PlayerManager.shared.isPlaying {
             playerLayer.player = nil
         } else {
             PlayerManager.shared.pause()
         }
+    }
+
+    @objc private func pipChanged() { setNeedsLayout() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // this layer stays blank while the PiP window has the picture; say where it went (not in the small mini-player thumbnail)
+        pipLabel.isHidden = !(PictureInPicture.shared.isActive && bounds.width >= 200)
+        pipLabel.frame = CGRect(x: 12, y: bounds.midY + 44, width: max(0, bounds.width - 24), height: 36)
     }
 
     @objc private func willEnterForeground() {
@@ -129,6 +149,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     private let captionButton = IconButton(icon: "closed_caption_off", size: 24)
     private let settingsButton = IconButton(icon: "settings", size: 24)
     private let routePicker = AVRoutePickerView()
+    private let pipButton = IconButton(icon: "picture_in_picture_alt", size: 24)
     private let prevButton = IconButton(icon: "skip_previous", size: 34)
     private let playButton = IconButton(icon: "play_arrow", size: 44, frame: CGRect(x: 0, y: 0, width: 72, height: 72))
     private let nextButton = IconButton(icon: "skip_next", size: 34)
@@ -155,6 +176,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     var onFullscreen: (() -> Void)?
     var onSettings: (() -> Void)?
     var onCaptions: (() -> Void)?
+    var onPictureInPicture: (() -> Void)?
     var isFullscreen = false { didSet { updateFullscreenIcon(); setNeedsLayout() } }
 
     override init(frame: CGRect) {
@@ -163,7 +185,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         shade.backgroundColor = UIColor(white: 0, alpha: 0.4)
         shade.isUserInteractionEnabled = false
 
-        for b in [collapseButton, captionButton, settingsButton, prevButton, playButton, nextButton, fullscreenButton] {
+        for b in [collapseButton, captionButton, settingsButton, pipButton, prevButton, playButton, nextButton, fullscreenButton] {
             b.tintColor = .white
             b.useThemeTint = false
         }
@@ -214,13 +236,14 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         skipIndicator.insets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         skipIndicator.alpha = 0
 
-        addSubviews([shade, statsView, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, captionButton, settingsButton,
+        addSubviews([shade, statsView, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, pipButton, captionButton, settingsButton,
                      prevButton, playButton, nextButton, timeLabel, chapterLabel, seekBar, fullscreenButton,
                      spinner, errorLabel, retryButton, skipIndicator])
 
         collapseButton.addTarget(self, action: #selector(collapseTapped), for: .touchUpInside)
         captionButton.addTarget(self, action: #selector(captionsTapped), for: .touchUpInside)
         settingsButton.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
+        pipButton.addTarget(self, action: #selector(pipTapped), for: .touchUpInside)
         fullscreenButton.addTarget(self, action: #selector(fullscreenTapped), for: .touchUpInside)
         playButton.addTarget(self, action: #selector(playTapped), for: .touchUpInside)
         prevButton.addTarget(self, action: #selector(prevTapped), for: .touchUpInside)
@@ -255,6 +278,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(refreshState), name: .playerChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshState), name: .playerItemChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(refreshCaptionIcon), name: .subtitlesChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshPip), name: .pipChanged, object: nil)
         refreshState()
     }
 
@@ -281,6 +305,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     @objc private func collapseTapped() { onCollapse?() }
     @objc private func captionsTapped() { onCaptions?(); scheduleHide() }
     @objc private func settingsTapped() { onSettings?(); scheduleHide() }
+    @objc private func pipTapped() { onPictureInPicture?(); scheduleHide() }
     @objc private func fullscreenTapped() { onFullscreen?() }
     @objc private func prevTapped() { PlayerManager.shared.playPrevious(); scheduleHide() }
     @objc private func nextTapped() { PlayerManager.shared.playNext(); scheduleHide() }
@@ -342,6 +367,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
             self.seekBar.alpha = alpha
             self.thinProgress.alpha = visible ? 0 : 1
             self.updatePlayButtonAlpha()
+            self.refreshPip()
             self.layoutSubtitle()
         }
         if animated { UIView.animate(withDuration: 0.2, animations: changes) } else { changes() }
@@ -393,6 +419,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         updatePlayButtonAlpha()
         if st == .playing { scheduleHide() } else if st != .playing { cancelHide(); if st != .loading && !controlsVisible { setControlsVisible(true, animated: true) } }
         refreshCaptionIcon()
+        refreshPip()
         refreshStats()
         setNeedsLayout()
     }
@@ -404,6 +431,16 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         guard pm.showsStats else { return }
         statsView.setLines(pm.statsLines())
         setNeedsLayout()
+    }
+
+    /// No button at all where the OS does not offer PiP; dimmed until the video layer has a picture to hand over.
+    @objc private func refreshPip() {
+        let pip = PictureInPicture.shared
+        let supported = PictureInPicture.isSupported
+        if pipButton.isHidden == supported { pipButton.isHidden = !supported; setNeedsLayout() }
+        let usable = pip.isPossible || pip.isActive
+        pipButton.isEnabled = usable
+        pipButton.alpha = (controlsVisible ? 1 : 0) * (usable ? 1 : 0.35)
     }
 
     @objc private func refreshCaptionIcon() {
@@ -481,7 +518,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         settingsButton.frame = CGRect(x: w - 48 - right, y: 2, width: 44, height: 44)
         captionButton.frame = CGRect(x: w - 96 - right, y: 2, width: 44, height: 44)
         routePicker.frame = CGRect(x: w - 144 - right, y: 2, width: 44, height: 44)
-        titleLabel.frame = CGRect(x: 52 + left, y: 2, width: w - 52 - 150 - left - right, height: 44)
+        pipButton.frame = CGRect(x: w - 192 - right, y: 2, width: 44, height: 44)
+        titleLabel.frame = CGRect(x: 52 + left, y: 2, width: w - 52 - (pipButton.isHidden ? 150 : 198) - left - right, height: 44)
         if !statsView.isHidden {
             let size = statsView.fittingSize(maxWidth: min(320, w - 20 - left - right))
             statsView.frame = CGRect(x: 10 + left, y: 46, width: size.width, height: size.height)

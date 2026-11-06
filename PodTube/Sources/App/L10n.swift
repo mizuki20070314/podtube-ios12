@@ -104,6 +104,8 @@ enum L10n {
         "player.audio": ("音声トラック", "Audio track"),
         "player.audioAuto": ("自動（端末の言語）", "Automatic (device language)"),
         "player.stats": ("統計情報", "Stats for nerds"),
+        "pip.active": ("ピクチャ・イン・ピクチャで再生中", "Playing in Picture in Picture"),
+        "pip.failed": ("ピクチャ・イン・ピクチャを開始できませんでした", "Could not start Picture in Picture"),
         "player.settings": ("設定", "Settings"),
         "player.autoTranslate": ("自動翻訳", "Auto-translate"),
 
