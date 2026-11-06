@@ -36,6 +36,10 @@ final class PlayerManager: NSObject {
     var chapters: [Chapter] = []
     private(set) var speed: Double = Settings.playbackSpeed
     private(set) var maxHeight: Int = Settings.maxQuality
+    /// The stats overlay on the player ("stats for nerds"). Not stored: it is hidden again at the next launch.
+    var showsStats = false {
+        didSet { if oldValue != showsStats { NotificationCenter.default.post(name: .playerChanged, object: nil) } }
+    }
 
     private var itemObservers: [NSKeyValueObservation] = []
     private var playerObservers: [NSKeyValueObservation] = []
@@ -123,6 +127,17 @@ final class PlayerManager: NSObject {
         return 0
     }
     var isLive: Bool { return info?.isLive ?? false }
+    /// How the current video is fetched (for the stats).
+    var sourceName: String {
+        guard candidateIndex < candidates.count else { return "-" }
+        switch candidates[candidateIndex] {
+        case .hls: return "HLS"
+        case .composite:
+            let downloaded = video.map { DownloadManager.shared.record(for: $0.id) != nil } ?? false
+            return downloaded ? "download" : "video+audio"
+        case .progressive: return "progressive"
+        }
+    }
     var bufferedTime: TimeInterval {
         guard let r = player.currentItem?.loadedTimeRanges.first?.timeRangeValue else { return 0 }
         let end = r.start.seconds + r.duration.seconds
@@ -301,6 +316,7 @@ final class PlayerManager: NSObject {
             if let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .legible) {
                 item.select(nil, in: group)
             }
+            applyAudioPreference(to: item)
             var startAt = currentTime
             if let v = video, let pos = Store.shared.resumePosition(for: v.id), !isLive, currentTime < 1 {
                 player.seek(to: CMTime(seconds: pos, preferredTimescale: 600))

@@ -62,6 +62,12 @@ shot 33_downloads 6 -pt-theme dark -route "tab:3;downloads"
 shot 34_manage_subs 6 -pt-theme dark -route "tab:2;manage"
 shot 23_chapters 18 -pt-theme dark -route "watch:aircAruvnKk;wait:8;w:chapters"
 
+# The stats overlay. (The audio track list cannot be shot here: the runner's address gets a bot check for every video
+# with several audio tracks that was tried.)
+shot 35_stats 16 -pt-theme dark -route "watch:$VID;wait:9;w:stats"
+shot 36_stats_320 18 -pt-theme dark -pt-size 320x568 -route "watch:$VID;wait:9;w:stats;w:controls"
+shot 37_stats_landscape 22 -pt-theme dark -route "watch:$VID;wait:9;w:stats;landscape;wait:3"
+
 # Google sign-in. The signed-in screens run on canned data (-pt-demo-account), never on a real account.
 shot 40_signin 6 -pt-theme dark -route "signin"
 shot 41_signin_light 6 -pt-theme light -route "signin"

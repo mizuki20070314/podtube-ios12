@@ -533,6 +533,7 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         case "speed": showSpeed()
         case "seek60": PlayerManager.shared.seek(to: 60)
         case "chapters": showChapters()
+        case "stats": PlayerManager.shared.showsStats = true
         default: break
         }
     }
@@ -556,6 +557,16 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
                         subtitle: pm.sleepEndsAt != nil || pm.sleepAtEnd ? "●" : L10n.t("player.sleepOff")) { [weak self] in self?.showSleep() }
         ]
         var all = acts
+        let audio = pm.audioOptions
+        if audio.count > 1 {
+            all.insert(SheetAction(title: L10n.t("player.audio"), icon: "audiotrack",
+                                   subtitle: audio.first(where: { $0.isSelected })?.title) { [weak self] in
+                self?.showAudioTracks()
+            }, at: 3)
+        }
+        all.append(SheetAction(title: L10n.t("player.stats"), icon: "analytics", checked: pm.showsStats) {
+            pm.showsStats = !pm.showsStats
+        })
         if pm.chapters.count >= 2 {
             all.insert(SheetAction(title: L10n.t("player.chapters"), icon: "format_list_bulleted",
                                    subtitle: Chapters.current(pm.chapters, at: pm.currentTime)?.title) { [weak self] in
@@ -574,6 +585,17 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
             }
         }
         SheetView.show(title: L10n.t("player.chapters"), actions: acts)
+    }
+
+    /// Only offered when the video has several audio tracks. "Automatic" follows the system language.
+    private func showAudioTracks() {
+        let pm = PlayerManager.shared
+        let auto = Settings.preferredAudio.isEmpty
+        var acts = [SheetAction(title: L10n.t("player.audioAuto"), checked: auto) { pm.selectAutomaticAudio() }]
+        for o in pm.audioOptions {
+            acts.append(SheetAction(title: o.title, checked: !auto && o.isSelected) { pm.selectAudio(o) })
+        }
+        SheetView.show(title: L10n.t("player.audio"), actions: acts)
     }
 
     private func showQuality() {

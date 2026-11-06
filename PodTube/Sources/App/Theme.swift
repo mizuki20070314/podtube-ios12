@@ -102,6 +102,12 @@ enum Settings {
         get { let v = d.double(forKey: "playbackSpeed"); return v == 0 ? 1.0 : v }
         set { d.set(newValue, forKey: "playbackSpeed") }
     }
+    /// The audio track chosen on a video that has several: "" = automatic (the system language decides), "original",
+    /// or a language tag ("ja", "en-us").
+    static var preferredAudio: String {
+        get { return d.string(forKey: "preferredAudio") ?? "" }
+        set { d.set(newValue, forKey: "preferredAudio") }
+    }
     /// "auto", "ja", "en"
     static var uiLanguage: String {
         get { return d.string(forKey: "uiLanguage") ?? "auto" }

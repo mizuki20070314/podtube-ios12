@@ -24,6 +24,27 @@ enum Format {
         return String(format: "%d:%02d", m, s)
     }
 
+    /// 2_500_000 -> "2.5 Mbps" / 128_000 -> "128 kbps"; unknown (zero or less) -> "-"
+    static func bitrate(_ bitsPerSecond: Double) -> String {
+        if !bitsPerSecond.isFinite || bitsPerSecond <= 0 { return "-" }
+        if bitsPerSecond >= 1_000_000 { return String(format: "%.1f", bitsPerSecond / 1_000_000) + " Mbps" }
+        return String(format: "%.0f", bitsPerSecond / 1_000) + " kbps"
+    }
+
+    /// 12_345_678 -> "11.8 MB" (1024 based); negative -> "-"
+    static func bytes(_ n: Int64) -> String {
+        if n < 0 { return "-" }
+        let units = ["B", "KB", "MB", "GB"]
+        var value = Double(n)
+        var i = 0
+        while value >= 1024 && i < units.count - 1 {
+            value /= 1024
+            i += 1
+        }
+        if i == 0 { return "\(n) B" }
+        return String(format: "%.1f", value) + " " + units[i]
+    }
+
     /// Compact count: 1234 -> "1.2K" / "1,234" depending on locale language.
     static func count(_ n: Int, japanese: Bool) -> String {
         if japanese {

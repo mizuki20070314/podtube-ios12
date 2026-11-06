@@ -101,6 +101,9 @@ enum L10n {
         "player.sleepOff": ("オフ", "Off"),
         "player.sleepMinutes": ("%@ 分", "%@ min"),
         "player.sleepEnd": ("動画の終了時", "End of video"),
+        "player.audio": ("音声トラック", "Audio track"),
+        "player.audioAuto": ("自動（端末の言語）", "Automatic (device language)"),
+        "player.stats": ("統計情報", "Stats for nerds"),
         "player.settings": ("設定", "Settings"),
         "player.autoTranslate": ("自動翻訳", "Auto-translate"),
 

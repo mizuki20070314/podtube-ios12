@@ -143,11 +143,13 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     private let skipIndicator = PaddedLabel()
     private let titleLabel = UILabel()
     private let chapterLabel = UILabel()
+    private let statsView = StatsOverlayView()
 
     private var timer: Timer?
     private var hideTimer: Timer?
     private(set) var controlsVisible = true
     private var scrubbing = false
+    private var statsTicks = 0
 
     var onCollapse: (() -> Void)?
     var onFullscreen: (() -> Void)?
@@ -212,7 +214,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         skipIndicator.insets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         skipIndicator.alpha = 0
 
-        addSubviews([shade, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, captionButton, settingsButton,
+        addSubviews([shade, statsView, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, captionButton, settingsButton,
                      prevButton, playButton, nextButton, timeLabel, chapterLabel, seekBar, fullscreenButton,
                      spinner, errorLabel, retryButton, skipIndicator])
 
@@ -391,6 +393,16 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         updatePlayButtonAlpha()
         if st == .playing { scheduleHide() } else if st != .playing { cancelHide(); if st != .loading && !controlsVisible { setControlsVisible(true, animated: true) } }
         refreshCaptionIcon()
+        refreshStats()
+        setNeedsLayout()
+    }
+
+    /// The stats panel: hidden unless switched on in the settings sheet; its text is renewed about once a second.
+    private func refreshStats() {
+        let pm = PlayerManager.shared
+        statsView.isHidden = !pm.showsStats
+        guard pm.showsStats else { return }
+        statsView.setLines(pm.statsLines())
         setNeedsLayout()
     }
 
@@ -434,6 +446,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         } else {
             subtitleLabel.isHidden = true
         }
+        statsTicks += 1
+        if statsTicks % 4 == 0 { refreshStats() }
     }
 
     private func updateFullscreenIcon() {
@@ -468,6 +482,10 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         captionButton.frame = CGRect(x: w - 96 - right, y: 2, width: 44, height: 44)
         routePicker.frame = CGRect(x: w - 144 - right, y: 2, width: 44, height: 44)
         titleLabel.frame = CGRect(x: 52 + left, y: 2, width: w - 52 - 150 - left - right, height: 44)
+        if !statsView.isHidden {
+            let size = statsView.fittingSize(maxWidth: min(320, w - 20 - left - right))
+            statsView.frame = CGRect(x: 10 + left, y: 46, width: size.width, height: size.height)
+        }
         let cx = w / 2
         let cy = h / 2
         playButton.frame = CGRect(x: cx - 36, y: cy - 36, width: 72, height: 72)

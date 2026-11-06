@@ -22,7 +22,7 @@ download_done shuffle play_circle verified notifications_none whatshot explore w
 edit more_horiz chevron_right chevron_left arrow_drop_down schedule picture_in_picture_alt skip_next
 radio_button_checked radio_button_unchecked check_circle person logout login lock storage cloud_off
 slow_motion_video music_note live_tv sensors dark_mode light_mode contrast aspect_ratio arrow_forward
-swap_vert screen_rotation volume_off format_list_bulleted play_arrow
+swap_vert screen_rotation volume_off format_list_bulleted play_arrow audiotrack analytics
 """.split()
 
 OUTLINED = """home subscriptions account_circle notifications thumb_up thumb_down share watch_later settings history

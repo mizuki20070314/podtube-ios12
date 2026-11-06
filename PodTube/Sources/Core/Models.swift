@@ -226,6 +226,21 @@ struct CaptionTrack {
     var isAuto: Bool
 }
 
+/// One audio track of a video that has several (the original, dubbed languages, audio description).
+struct AudioTrackInfo {
+    /// "ja.3": the language tag, a dot and a version number.
+    var id: String
+    /// In the language of the request ("日本語", "英語（オリジナル）").
+    var name: String
+    /// The original audio of the video.
+    var isDefault: Bool
+
+    /// "ja" / "zh-Hans": the id without its version.
+    var languageTag: String {
+        return String(id.split(separator: ".", maxSplits: 1).first ?? "")
+    }
+}
+
 struct AdaptiveFormat {
     var height: Int
     var url: URL
@@ -247,7 +262,10 @@ struct PlaybackInfo {
     var progressiveURL: URL?
     var captions: [CaptionTrack] = []
     var videoFormats: [AdaptiveFormat] = []
+    /// Formats of the original audio track (the only one when the video has a single track).
     var audioFormats: [AdaptiveFormat] = []
+    /// Every audio track of the video (one entry per track; two or more means the viewer can choose).
+    var audioTracks: [AudioTrackInfo] = []
     var maxHeight: Int = 0
     var fetchedAt: Date = Date()
 

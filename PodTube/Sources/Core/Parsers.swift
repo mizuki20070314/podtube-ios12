@@ -706,9 +706,21 @@ enum Parse {
             if h >= bestMuxed { bestMuxed = h; info.progressiveURL = URL(string: u) }
         }
 
+        // A video with several audio tracks lists every track in adaptiveFormats. Without a choice the original one
+        // is used (the first one when none is marked), otherwise the best bitrate would pick an arbitrary language.
+        var originalTrackId = ""
+        for f in sd["adaptiveFormats"].array {
+            let t = f["audioTrack"]
+            let id = t["id"].stringValue
+            if id.isEmpty || info.audioTracks.contains(where: { $0.id == id }) { continue }
+            info.audioTracks.append(AudioTrackInfo(id: id, name: t["displayName"].stringValue, isDefault: t["audioIsDefault"].bool ?? false))
+        }
+        if let original = info.audioTracks.first(where: { $0.isDefault }) ?? info.audioTracks.first { originalTrackId = original.id }
+
         // Adaptive H.264 + AAC (combined on the device with AVMutableComposition if HLS is unavailable).
         var bestVideoH = 0
         var bestAudioRate = 0
+        var otherTracksAudio: [AdaptiveFormat] = []
         for f in sd["adaptiveFormats"].array {
             let mime = f["mimeType"].stringValue
             guard let u = f["url"].string else { continue }
@@ -720,12 +732,22 @@ enum Parse {
                 }
                 if h > bestVideoH && h <= 1080 { bestVideoH = h; info.videoURL = URL(string: u) }
             } else if mime.contains("audio/mp4") && mime.contains("mp4a") {
+                let trackId = f["audioTrack"]["id"].stringValue
                 let br = f["bitrate"].int ?? 0
-                if let url = URL(string: u) {
-                    info.audioFormats.append(AdaptiveFormat(height: 0, url: url, bitrate: br, contentLength: length))
+                guard let url = URL(string: u) else { continue }
+                let format = AdaptiveFormat(height: 0, url: url, bitrate: br, contentLength: length)
+                if !trackId.isEmpty && trackId != originalTrackId {
+                    otherTracksAudio.append(format)
+                    continue
                 }
-                if br > bestAudioRate { bestAudioRate = br; info.audioURL = URL(string: u) }
+                info.audioFormats.append(format)
+                if br > bestAudioRate { bestAudioRate = br; info.audioURL = url }
             }
+        }
+        // the original track has no AAC (only Opus, say): better another language than no audio for the fallback
+        if info.audioFormats.isEmpty, let best = otherTracksAudio.max(by: { $0.bitrate < $1.bitrate }) {
+            info.audioFormats = otherTracksAudio
+            info.audioURL = best.url
         }
         info.maxHeight = max(bestVideoH, bestMuxed)
 
