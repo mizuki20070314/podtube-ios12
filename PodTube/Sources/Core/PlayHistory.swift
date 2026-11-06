@@ -188,8 +188,9 @@ extension InnerTube {
 }
 
 /// Reports what is played in the app to YouTube, one play at a time: the playback ping when the video starts, and the
-/// watch-time ping when it ends (or is replaced by another one). Best effort: after three failures in a row it stops for
-/// this launch, and the history screens still show the plays of this app from the device's own history (HistoryMerge).
+/// watch-time ping when it ends (or is replaced by another one). Best effort: after three refusals in a row (answers of
+/// YouTube that are not OK; a play without network, e.g. of a download, does not count) it stops for ten minutes, and
+/// the history screens still show the plays of this app from the device's own history (HistoryMerge).
 /// Safe to call from any thread.
 final class PlayHistoryReporter {
     static let shared = PlayHistoryReporter()
@@ -197,6 +198,7 @@ final class PlayHistoryReporter {
     /// Plays shorter than this are not reported as watched.
     static let minWatchSeconds = 5.0
     static let maxFailures = 3
+    static let retryAfter: TimeInterval = 600
 
     private final class Session {
         let videoId: String
@@ -216,19 +218,27 @@ final class PlayHistoryReporter {
     private let queue = DispatchQueue(label: "podtube.playhistory")
     private var current: Session?
     private var failures = 0
+    private var lastFailure = Date.distantPast
 
     /// A video started playing at `position` seconds (`reportsWatchTime` false for live streams).
     func started(videoId: String, position: Double, reportsWatchTime: Bool = true) {
         queue.async {
-            guard AuthSession.shared.isSignedIn, AccountDemo.responder == nil, self.failures < PlayHistoryReporter.maxFailures else { return }
+            guard AuthSession.shared.isSignedIn, AccountDemo.responder == nil else { return }
+            if self.failures >= PlayHistoryReporter.maxFailures {
+                guard Date().timeIntervalSince(self.lastFailure) >= PlayHistoryReporter.retryAfter else { return }
+                self.failures = 0
+            }
             if let c = self.current, c.videoId == videoId, c.endPosition == nil { return } // this play is already reported
             let session = Session(videoId: videoId, startPosition: max(0, position.isFinite ? position : 0), reportsWatchTime: reportsWatchTime)
             self.current = session
             InnerTube.shared.accountPlaybackTracking(videoId: videoId) { result in
                 self.queue.async {
                     switch result {
-                    case .failure:
-                        self.failures += 1
+                    case .failure(let e):
+                        if PlayHistoryReporter.isRefusal(e) {
+                            self.failures += 1
+                            self.lastFailure = Date()
+                        }
                     case .success(let tracking):
                         self.failures = 0
                         session.tracking = tracking
@@ -253,6 +263,13 @@ final class PlayHistoryReporter {
     /// Forgets earlier failures (after signing in again).
     func reset() {
         queue.async { self.failures = 0 }
+    }
+
+    /// An answer of YouTube that is a refusal (an HTTP error status or a response that is not OK), as opposed to no network.
+    private static func isRefusal(_ error: Error) -> Bool {
+        if error is InnerTubeError { return true }
+        if let http = error as? HttpError, case .badStatus = http { return true }
+        return false
     }
 
     private func sendWatched(_ session: Session) {
