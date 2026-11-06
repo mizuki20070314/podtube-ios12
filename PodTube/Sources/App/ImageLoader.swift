@@ -26,6 +26,11 @@ final class ImageLoader {
         session.configuration.urlCache?.removeAllCachedResponses()
     }
 
+    /// The decoded image if it is in memory already; nothing is requested otherwise.
+    func cached(_ url: URL, maxPixel: CGFloat) -> UIImage? {
+        return cache.object(forKey: "\(url.absoluteString)#\(Int(maxPixel.rounded()))" as NSString)
+    }
+
     func load(_ url: URL, maxPixel: CGFloat, completion: @escaping (UIImage?) -> Void) {
         let px = Int(maxPixel.rounded())
         let key = "\(url.absoluteString)#\(px)"

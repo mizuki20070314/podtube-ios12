@@ -71,9 +71,21 @@ final class SeekBar: UIControl {
     var buffered: CGFloat = 0 { didSet { setNeedsLayout() } }
     var showsThumb = true { didSet { thumb.isHidden = !showsThumb } }
     private(set) var isScrubbing = false
+    /// True while the finger is held well above the bar: the position then follows the finger's sideways movement at
+    /// the pace of `fineValuePerPoint`, not the place on the bar the finger is over.
+    private(set) var isFine = false
+    /// What one point of sideways movement is worth (as a share of the whole video) while fine-adjusting; nil where
+    /// there is nothing to show for it (no preview frames), so that the bar always follows the finger.
+    var fineValuePerPoint: CGFloat?
+    private var fineAnchorX: CGFloat = 0
+    private var fineAnchorValue: CGFloat = 0
+    /// How far above the middle of the bar the finger has to be to enter fine-adjusting, and to leave it again.
+    private static let fineEnter: CGFloat = 36
+    private static let fineLeave: CGFloat = 14
 
     var onBegin: (() -> Void)?
     var onChange: ((CGFloat) -> Void)?
+    var onFineChanged: ((Bool) -> Void)?
     var onEnd: ((CGFloat) -> Void)?
 
     override init(frame: CGRect) {
@@ -107,14 +119,27 @@ final class SeekBar: UIControl {
     }
 
     private func update(_ touch: UITouch) {
+        let p = touch.location(in: self)
+        let lift = bounds.midY - p.y
+        let wantsFine = fineValuePerPoint != nil && lift >= (isFine ? SeekBar.fineLeave : SeekBar.fineEnter)
+        if wantsFine != isFine {
+            isFine = wantsFine
+            fineAnchorX = p.x
+            fineAnchorValue = value
+            onFineChanged?(wantsFine)
+        }
+        if isFine, let perPoint = fineValuePerPoint {
+            value = min(1, max(0, fineAnchorValue + (p.x - fineAnchorX) * perPoint))
+            return
+        }
         let inset = thumbSize / 2
         let w = max(1, bounds.width - inset * 2)
-        let x = touch.location(in: self).x - inset
-        value = min(1, max(0, x / w))
+        value = min(1, max(0, (p.x - inset) / w))
     }
 
     override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
         isScrubbing = true
+        isFine = false
         update(touch)
         onBegin?()
         onChange?(value)
@@ -130,12 +155,14 @@ final class SeekBar: UIControl {
     override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
         if let t = touch { update(t) }
         isScrubbing = false
+        isFine = false
         setNeedsLayout()
         onEnd?(value)
     }
 
     override func cancelTracking(with event: UIEvent?) {
         isScrubbing = false
+        isFine = false
         setNeedsLayout()
         onEnd?(value)
     }
@@ -165,12 +192,23 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     private let titleLabel = UILabel()
     private let chapterLabel = UILabel()
     private let statsView = StatsOverlayView()
+    private let scrubPill = PaddedLabel()
+    private let filmStrip = FilmStripView()
 
     private var timer: Timer?
     private var hideTimer: Timer?
     private(set) var controlsVisible = true
+    /// From the finger touching the seek bar until the seek it asked for has landed (the bar ignores the player meanwhile).
     private var scrubbing = false
+    /// A finger holds the seek bar: the controls stand aside for the pill, and for the film strip once it slides up.
+    private var fingerDown = false
+    private var scrubFine = false
+    private var scrubTime: Double = 0
+    private var scrubStoryboard: Storyboard?
     private var statsTicks = 0
+    private var chromeVisible: Bool { return controlsVisible && !fingerDown }
+    /// The film strip: about a third of the player, but neither a sliver nor a wall.
+    private var stripHeight: CGFloat { return min(120, max(56, (bounds.height * 0.3).rounded())) }
 
     var onCollapse: (() -> Void)?
     var onFullscreen: (() -> Void)?
@@ -236,9 +274,17 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         skipIndicator.insets = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
         skipIndicator.alpha = 0
 
+        scrubPill.textAlignment = .center
+        scrubPill.backgroundColor = UIColor(white: 0, alpha: 0.6)
+        scrubPill.insets = UIEdgeInsets(top: 5, left: 14, bottom: 5, right: 14)
+        scrubPill.clipsToBounds = true
+        scrubPill.isUserInteractionEnabled = false
+        scrubPill.alpha = 0
+        filmStrip.alpha = 0
+
         addSubviews([shade, statsView, thinProgress, subtitleLabel, collapseButton, titleLabel, routePicker, pipButton, captionButton, settingsButton,
                      prevButton, playButton, nextButton, timeLabel, chapterLabel, seekBar, fullscreenButton,
-                     spinner, errorLabel, retryButton, skipIndicator])
+                     spinner, errorLabel, retryButton, filmStrip, scrubPill, skipIndicator])
 
         collapseButton.addTarget(self, action: #selector(collapseTapped), for: .touchUpInside)
         captionButton.addTarget(self, action: #selector(captionsTapped), for: .touchUpInside)
@@ -250,21 +296,10 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         nextButton.addTarget(self, action: #selector(nextTapped), for: .touchUpInside)
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
 
-        seekBar.onBegin = { [weak self] in
-            self?.scrubbing = true
-            self?.cancelHide()
-        }
-        seekBar.onChange = { [weak self] v in
-            guard let self = self else { return }
-            let d = PlayerManager.shared.duration
-            self.timeLabel.text = Format.duration(Double(v) * d) + " / " + Format.duration(d)
-        }
-        seekBar.onEnd = { [weak self] v in
-            guard let self = self else { return }
-            let d = PlayerManager.shared.duration
-            PlayerManager.shared.seek(to: Double(v) * d) { self.scrubbing = false }
-            self.scheduleHide()
-        }
+        seekBar.onBegin = { [weak self] in self?.scrubBegan() }
+        seekBar.onFineChanged = { [weak self] fine in self?.scrubFineChanged(fine) }
+        seekBar.onChange = { [weak self] v in self?.scrubMoved(to: v) }
+        seekBar.onEnd = { [weak self] v in self?.scrubEnded(at: v) }
 
         let single = UITapGestureRecognizer(target: self, action: #selector(singleTapped(_:)))
         let double = UITapGestureRecognizer(target: self, action: #selector(doubleTapped(_:)))
@@ -299,6 +334,120 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
     }
 
     func debugShow() { setControlsVisible(true, animated: false); cancelHide() }
+
+    /// For the screenshots: what a finger holding the seek bar at `value` looks like (with a made-up storyboard where
+    /// the video has none, which is all the CI can count on).
+    func debugScrub(value: CGFloat, fine: Bool) {
+        let pm = PlayerManager.shared
+        let d = pm.duration > 0 ? pm.duration : 212
+        cancelHide()
+        scrubbing = true
+        fingerDown = true
+        scrubFine = fine
+        scrubStoryboard = pm.storyboard ?? DebugStoryboard.make(duration: d)
+        filmStrip.configure(scrubStoryboard)
+        seekBar.value = value
+        scrubTime = Double(value) * d
+        filmStrip.setTime(scrubTime)
+        updateScrubPill()
+        updateScrubChrome(animated: false)
+    }
+
+    func debugScrubEnd() {
+        scrubbing = false
+        fingerDown = false
+        scrubFine = false
+        updateScrubChrome(animated: false)
+    }
+
+    // MARK: Scrubbing
+
+    private func scrubBegan() {
+        let pm = PlayerManager.shared
+        scrubbing = true
+        fingerDown = true
+        scrubFine = false
+        cancelHide()
+        pm.beginScrub()
+        scrubStoryboard = pm.storyboard
+        filmStrip.configure(scrubStoryboard)
+        seekBar.fineValuePerPoint = fineValuePerPoint()
+        if let sb = scrubStoryboard {
+            // the sheet for the place where the finger went down, ready for when it slides up
+            StoryboardImages.shared.warm(sb, level: sb.level(minWidth: FilmStripView.preferredFrameWidth),
+                                         at: Double(seekBar.value) * pm.duration)
+        }
+        updateScrubChrome(animated: true)
+    }
+
+    private func scrubFineChanged(_ fine: Bool) {
+        scrubFine = fine
+        updateScrubChrome(animated: true)
+    }
+
+    private func scrubMoved(to v: CGFloat) {
+        let pm = PlayerManager.shared
+        let d = pm.duration
+        scrubTime = Double(v) * d
+        timeLabel.text = Format.duration(scrubTime) + " / " + Format.duration(d)
+        pm.scrub(to: scrubTime, fine: scrubFine)
+        filmStrip.setTime(scrubTime)
+        updateScrubPill()
+    }
+
+    private func scrubEnded(at v: CGFloat) {
+        let d = PlayerManager.shared.duration
+        fingerDown = false
+        scrubFine = false
+        updateScrubChrome(animated: true)
+        PlayerManager.shared.endScrub(at: Double(v) * d) { [weak self] in self?.scrubbing = false }
+        scheduleHide()
+    }
+
+    /// What one point of sideways movement of the finger is worth while the film strip is up: one frame width is one
+    /// frame spacing. nil where the video has no frames to show.
+    private func fineValuePerPoint() -> CGFloat? {
+        let d = PlayerManager.shared.duration
+        guard let sb = scrubStoryboard, d > 0 else { return nil }
+        let level = sb.level(minWidth: FilmStripView.preferredFrameWidth)
+        return CGFloat(sb.spacing(of: level)) / FilmStripView.tileWidth(height: stripHeight) / CGFloat(d)
+    }
+
+    /// The pill over the bar (over the strip when it is up): the time and, if the video has chapters, the chapter.
+    private func updateScrubPill() {
+        let text = NSMutableAttributedString(string: Format.duration(scrubTime),
+                                             attributes: [.font: Theme.font(14, .bold), .foregroundColor: UIColor.white])
+        if let ch = Chapters.current(PlayerManager.shared.chapters, at: scrubTime) {
+            text.append(NSAttributedString(string: "  " + ch.title,
+                                           attributes: [.font: Theme.font(14, .medium), .foregroundColor: UIColor(white: 1, alpha: 0.9)]))
+        }
+        scrubPill.attributedText = text
+        layoutScrub()
+    }
+
+    /// The controls go out of the way of the finger; the pill comes in, and the film strip once the finger is above the bar.
+    private func updateScrubChrome(animated: Bool) {
+        layoutScrub()
+        let changes = {
+            self.applyVisibility()
+            self.filmStrip.alpha = (self.fingerDown && self.scrubFine) ? 1 : 0
+            self.scrubPill.alpha = self.fingerDown ? 1 : 0
+        }
+        if animated { UIView.animate(withDuration: 0.15, animations: changes) } else { changes() }
+    }
+
+    private func layoutScrub() {
+        let w = bounds.width
+        let h = bounds.height
+        let sh = stripHeight
+        filmStrip.frame = CGRect(x: 0, y: h - sh, width: w, height: sh)
+        let maxW = max(0, w - 32)
+        let size = scrubPill.sizeThatFits(CGSize(width: maxW, height: 40))
+        let pw = min(maxW, size.width)
+        let bottom = scrubFine ? h - sh - 12 : seekBar.frame.midY - 26
+        scrubPill.frame = CGRect(x: ((w - pw) / 2).rounded(), y: bottom - size.height, width: pw, height: size.height)
+        scrubPill.layer.cornerRadius = size.height / 2
+    }
 
     // MARK: Actions
 
@@ -357,21 +506,32 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
 
     func setControlsVisible(_ visible: Bool, animated: Bool) {
         controlsVisible = visible
-        let alpha: CGFloat = visible ? 1 : 0
-        let changes = {
-            self.shade.alpha = alpha
-            for v in [self.collapseButton, self.captionButton, self.settingsButton, self.routePicker, self.prevButton,
-                      self.nextButton, self.timeLabel, self.chapterLabel, self.fullscreenButton, self.titleLabel] as [UIView] {
-                v.alpha = alpha
-            }
-            self.seekBar.alpha = alpha
-            self.thinProgress.alpha = visible ? 0 : 1
-            self.updatePlayButtonAlpha()
-            self.refreshPip()
-            self.layoutSubtitle()
-        }
-        if animated { UIView.animate(withDuration: 0.2, animations: changes) } else { changes() }
+        if animated { UIView.animate(withDuration: 0.2, animations: { self.applyVisibility() }) } else { applyVisibility() }
         if visible { scheduleHide() } else { cancelHide() }
+    }
+
+    /// Alphas of everything that comes and goes with the controls (which also stand aside while a finger scrubs).
+    private func applyVisibility() {
+        let alpha: CGFloat = chromeVisible ? 1 : 0
+        shade.alpha = alpha
+        for v in [collapseButton, captionButton, settingsButton, routePicker, timeLabel, chapterLabel, fullscreenButton, titleLabel] as [UIView] {
+            v.alpha = alpha
+        }
+        refreshTransportAlpha()
+        let barShown = controlsVisible || fingerDown
+        seekBar.alpha = barShown ? 1 : 0
+        thinProgress.alpha = barShown ? 0 : 1
+        updatePlayButtonAlpha()
+        refreshPip()
+        layoutSubtitle()
+    }
+
+    /// Previous / next: dimmed where there is nothing to go to.
+    private func refreshTransportAlpha() {
+        let pm = PlayerManager.shared
+        let a: CGFloat = chromeVisible ? 1 : 0
+        prevButton.alpha = a * (pm.hasPrevious ? 1 : 0.35)
+        nextButton.alpha = a * (pm.hasNext ? 1 : 0.35)
     }
 
     private func scheduleHide() {
@@ -392,8 +552,11 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         let st = PlayerManager.shared.state
         let busy = st == .loading || st == .buffering
         let failed = st == .failed
-        playButton.alpha = (controlsVisible && !busy && !failed) ? 1 : 0
-        playButton.isUserInteractionEnabled = controlsVisible && !busy && !failed
+        // the big button stays (as a picture) while the film strip is up, the video being paused meanwhile; on a small
+        // player the pill would land on it, and the pill wins
+        let pictureOnly = fingerDown && scrubFine && scrubPill.frame.minY >= playButton.frame.maxY + 6
+        playButton.alpha = ((chromeVisible || pictureOnly) && !busy && !failed) ? 1 : 0
+        playButton.isUserInteractionEnabled = chromeVisible && !busy && !failed
     }
 
     // MARK: State
@@ -412,9 +575,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         retryButton.isHidden = st != .failed
         errorLabel.text = pm.errorMessage
         prevButton.isEnabled = pm.hasPrevious || pm.currentTime > 5
-        prevButton.alpha = (controlsVisible ? 1 : 0) * (pm.hasPrevious ? 1 : 0.35)
         nextButton.isEnabled = pm.hasNext
-        nextButton.alpha = (controlsVisible ? 1 : 0) * (pm.hasNext ? 1 : 0.35)
+        refreshTransportAlpha()
         titleLabel.text = pm.video?.title
         updatePlayButtonAlpha()
         if st == .playing { scheduleHide() } else if st != .playing { cancelHide(); if st != .loading && !controlsVisible { setControlsVisible(true, animated: true) } }
@@ -440,7 +602,7 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         if pipButton.isHidden == supported { pipButton.isHidden = !supported; setNeedsLayout() }
         let usable = pip.isPossible || pip.isActive
         pipButton.isEnabled = usable
-        pipButton.alpha = (controlsVisible ? 1 : 0) * (usable ? 1 : 0.35)
+        pipButton.alpha = (chromeVisible ? 1 : 0) * (usable ? 1 : 0.35)
     }
 
     @objc private func refreshCaptionIcon() {
@@ -473,8 +635,8 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         } else {
             chapterLabel.text = nil
         }
-        // captions
-        if SubtitleController.shared.isEnabled, let text = SubtitleController.shared.text(at: t) {
+        // captions (not while a finger scrubs: they would sit on the pill)
+        if !fingerDown, SubtitleController.shared.isEnabled, let text = SubtitleController.shared.text(at: t) {
             if subtitleLabel.text != text {
                 subtitleLabel.text = text
                 layoutSubtitle()
@@ -538,5 +700,6 @@ final class PlayerControlsView: UIView, UIGestureRecognizerDelegate {
         retryButton.frame = CGRect(x: cx - 50, y: cy + 14, width: 100, height: 32)
         thinProgress.frame = CGRect(x: 0, y: h - 2, width: thinProgress.frame.width, height: 2)
         layoutSubtitle()
+        layoutScrub()
     }
 }

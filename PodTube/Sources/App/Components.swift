@@ -487,7 +487,10 @@ final class ShortsShelfCell: UITableViewCell, UICollectionViewDataSource, UIColl
     private var videos: [VideoItem] = []
     var onSelect: (([VideoItem], Int) -> Void)?
 
-    static func cardWidth(_ w: CGFloat) -> CGFloat { return floor((w - 12 * 2 - 8 * 2) / 2.6) }
+    /// On an iPad the cards keep one size (166 pt wide, as in the YouTube app) instead of growing with the screen.
+    static func cardWidth(_ w: CGFloat) -> CGFloat {
+        return GridLayout.isRegular(width: w) ? 166 : floor((w - 12 * 2 - 8 * 2) / 2.6)
+    }
     static func height(width: CGFloat) -> CGFloat {
         return 52 + (cardWidth(width) * 16 / 9).rounded() + 14
     }
@@ -532,8 +535,16 @@ final class ShortsShelfCell: UITableViewCell, UICollectionViewDataSource, UIColl
     override func layoutSubviews() {
         super.layoutSubviews()
         let w = contentView.bounds.width
-        icon.frame = CGRect(x: 12, y: 13, width: 26, height: 26)
-        header.frame = CGRect(x: 44, y: 12, width: w - 56, height: 28)
+        // an iPad lines the shelf up with the margins of the video grid
+        let regular = GridLayout.isRegular(width: w)
+        let inset: CGFloat = regular ? 16 : 12
+        if layout.sectionInset.left != inset {
+            layout.sectionInset = UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
+            layout.minimumLineSpacing = regular ? 12 : 8
+            layout.invalidateLayout()
+        }
+        icon.frame = CGRect(x: inset, y: 13, width: 26, height: 26)
+        header.frame = CGRect(x: inset + 32, y: 12, width: w - inset * 2 - 32, height: 28)
         let ch = (ShortsShelfCell.cardWidth(w) * 16 / 9).rounded()
         collection.frame = CGRect(x: 0, y: 48, width: w, height: ch)
     }

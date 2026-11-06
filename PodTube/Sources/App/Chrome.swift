@@ -132,9 +132,16 @@ final class TabBarView: UIView {
         super.layoutSubviews()
         divider.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 0.5)
         guard !controls.isEmpty else { return }
-        let w = bounds.width / CGFloat(controls.count)
+        let n = CGFloat(controls.count)
+        var w = bounds.width / n
+        var x0: CGFloat = 0
+        if GridLayout.isRegular(width: bounds.width) {
+            // an iPad: the items stay a hand apart in the middle of the bar instead of spreading over the whole width
+            w = min(w, 100)
+            x0 = ((bounds.width - w * n) / 2).rounded()
+        }
         for (i, c) in controls.enumerated() {
-            c.frame = CGRect(x: CGFloat(i) * w, y: 0, width: w, height: TabBarView.contentHeight)
+            c.frame = CGRect(x: x0 + CGFloat(i) * w, y: 0, width: w, height: TabBarView.contentHeight)
             icons[i].frame = CGRect(x: (w - 24) / 2, y: 7, width: 24, height: 24)
             labels[i].frame = CGRect(x: 0, y: 32, width: w, height: 13)
         }

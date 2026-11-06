@@ -117,6 +117,12 @@ shot 54_home_account_320 20 -pt-theme dark -pt-demo-account -pt-size 320x568
 shot 55_history_account 16 -pt-theme dark -pt-demo-account -route "tab:3;acctlist:history"
 shot 56_history_320 16 -pt-theme dark -pt-demo-account -pt-size 320x568 -route "tab:3;acctlist:history"
 shot 57_history_local 12 -pt-theme dark -route "tab:3;localhistory"
+
+# The seek bar held by a finger (no touches in a script: w:scrub / w:fine put the player in that state, on a made-up
+# storyboard where the video has none): the pill over the bar, then the film strip once the finger slides up.
+shot 95_scrub 14 -pt-theme dark -route "watch:$VID;wait:7;w:scrub:0.4"
+shot 96_fine 14 -pt-theme dark -route "watch:$VID;wait:7;w:fine:0.4"
+shot 97_fine_320 16 -pt-theme dark -pt-size 320x568 -route "watch:$VID;wait:7;w:fine:0.4"
 fi
 
 if [ "$SET" = "core" ]; then
@@ -144,6 +150,31 @@ shot 87_history_account 16 -pt-theme dark -pt-demo-account -route "tab:3;acctlis
 shot 88_history_merged 16 -pt-theme dark -pt-demo-account -route "seedhistory;tab:3;acctlist:history"
 shot 89_home_scrolled 20 -pt-theme dark -route "wait:10;scroll:1400;wait:1"
 shot 90_home_retap 20 -pt-theme dark -route "wait:10;scroll:1400;wait:1;retap;wait:2"
+shot 93_scrub 14 -pt-theme dark -route "watch:$VID;wait:7;w:scrub:0.4"
+shot 94_fine 14 -pt-theme dark -route "watch:$VID;wait:7;w:fine:0.4"
+shot 95_fine_landscape 22 -pt-theme dark -route "watch:$VID;wait:9;landscape;wait:3;w:fine:0.6"
+
+# iPad held sideways: the home screen becomes three columns of cards and the watch page two panes. "orient:landscape" turns
+# the screen the way the iPad's own rotation does (not the fullscreen of "landscape"); the simulator then stays turned, so
+# the group ends with a launch that turns it back.
+ROTATED=0
+ipad_shot() {
+  xcrun simctl list devices | grep "$UDID" | grep -q iPad || return
+  want "$1" && ROTATED=1
+  shot "$@"
+}
+ipad_shot 100_ipad_home_landscape 20 -pt-theme dark -route "orient:landscape;wait:2"
+ipad_shot 101_ipad_watch_landscape 24 -pt-theme dark -route "orient:landscape;wait:2;watch:$VID;wait:9"
+ipad_shot 102_ipad_watch_landscape_light 24 -pt-theme light -route "orient:landscape;wait:2;watch:$VID;wait:9"
+ipad_shot 103_ipad_comments_landscape 26 -pt-theme dark -route "orient:landscape;wait:2;watch:$VID;wait:9;comments"
+ipad_shot 104_ipad_mini_landscape 24 -pt-theme dark -route "orient:landscape;wait:2;watch:$VID;wait:9;minimize;wait:2"
+ipad_shot 105_ipad_expand_landscape 24 -pt-theme dark -route "orient:landscape;wait:2;watch:$VID;wait:7;w:expand"
+ipad_shot 106_ipad_controls_landscape 24 -pt-theme dark -route "orient:landscape;wait:2;watch:$VID;wait:7;w:controls"
+if [ "$ROTATED" = 1 ]; then
+  xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+  xcrun simctl launch "$UDID" "$BUNDLE" -AppleLanguages "(ja)" -AppleLocale ja_JP -route "orient:portrait;wait:2" || echo "launch failed"
+  sleep 6
+fi
 fi
 
 # Live streams (24/7 news channels): the player must start, or show the AVFoundation error.

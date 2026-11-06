@@ -14,12 +14,32 @@ final class WatchContentViewController: FeedViewController {
     var onSeek: ((Double) -> Void)?
     var onLoaded: ((VideoItem) -> Void)?
 
+    /// iPad held sideways: the details (title, actions, channel, comments) sit in `detailsScroll` under the player, and
+    /// this screen is only the related videos, headed by "Up next". Set by `WatchViewController`.
+    var split = false {
+        didSet { if split != oldValue { installHeader() } }
+    }
+    /// Width of the details column while `split`.
+    var detailsWidth: CGFloat = 0 {
+        didSet { if split && detailsWidth != oldValue { updateHeader() } }
+    }
+    weak var detailsScroll: UIScrollView?
+    /// The details were laid out again (they are `height` tall).
+    var onDetailsChanged: ((CGFloat) -> Void)?
+    private let upNextHeader = UpNextHeaderView()
+
     override var showsRefreshControl: Bool { return false }
 
     override var stateFrame: CGRect {
-        let h = header.frame.height
+        let h = split ? UpNextHeaderView.height : header.frame.height
         let f = listFrame
         return CGRect(x: 0, y: min(f.height, h), width: f.width, height: max(0, f.height - h))
+    }
+
+    /// Beside the player the related videos make one column of cards.
+    override func gridLayout(width: CGFloat) -> GridLayout {
+        if split { return GridLayout(columns: 1, card: true, margin: 12, gap: 12) }
+        return super.gridLayout(width: width)
     }
 
     override func viewDidLoad() {
@@ -31,7 +51,23 @@ final class WatchContentViewController: FeedViewController {
         header.onOpenComments = { [weak self] in self?.onOpenComments?() }
         header.onSeek = { [weak self] s in self?.onSeek?(s) }
         header.onNeedsLayout = { [weak self] in self?.updateHeader() }
-        tableView.tableHeaderView = header
+        installHeader()
+    }
+
+    /// Puts the details where the current mode wants them: above the list, or in the scroll view beside it.
+    private func installHeader() {
+        guard isViewLoaded else { return }
+        header.showsUpNext = !split
+        if split {
+            upNextHeader.frame = CGRect(x: 0, y: 0, width: tableView.bounds.width, height: UpNextHeaderView.height)
+            tableView.tableHeaderView = upNextHeader // this also takes the details off the table
+            detailsScroll?.addSubview(header)
+        } else {
+            tableView.tableHeaderView = header
+        }
+        updateHeader()
+        reloadList()
+        view.setNeedsLayout()
     }
 
     func load(video v: VideoItem, playlistId pl: String?) {
@@ -40,17 +76,30 @@ final class WatchContentViewController: FeedViewController {
         info = nil
         firstComments = nil
         clearList()
+        detailsScroll?.setContentOffset(.zero, animated: false)
         header.configure(preview: v)
         updateHeader()
         reload()
     }
 
     override func headerView(width: CGFloat) -> UIView? {
+        if split {
+            upNextHeader.frame = CGRect(x: 0, y: 0, width: width, height: UpNextHeaderView.height)
+            return upNextHeader
+        }
         updateHeader()
         return header
     }
 
     func updateHeader() {
+        if split {
+            let w = detailsWidth
+            if w <= 0 { return }
+            let h = header.layout(width: w)
+            header.frame = CGRect(x: 0, y: 0, width: w, height: h)
+            onDetailsChanged?(h)
+            return
+        }
         let w = tableView.bounds.width > 0 ? tableView.bounds.width : view.bounds.width
         if w <= 0 { return }
         let h = header.layout(width: w)
@@ -222,6 +271,8 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     private let topFill = UIView()
     private let miniBar = MiniBarView()
     private let content = WatchContentViewController()
+    /// iPad held sideways: title, actions, channel and comments, under the player (the related list has the right-hand pane).
+    private let detailsScroll = UIScrollView()
     private let commentsHost = UIView()
     private let playerHost = UIView()
     private let playerView = PlayerView()
@@ -234,6 +285,10 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
     private var miniFrame = CGRect.zero
     private var safeTop: CGFloat = 20
     private var panStart: CGFloat = 0
+    /// Two panes (see `detailsScroll`) instead of one column.
+    private(set) var isSplit = false
+    /// The player (and the details under it) take this share of the width when split.
+    private static let splitRatio: CGFloat = 0.6875
 
     private(set) var isActive = false
     var onClose: (() -> Void)?
@@ -255,6 +310,13 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         view.addSubview(miniBar)
         view.addSubview(content.view)
         content.didMove(toParent: self)
+        detailsScroll.isHidden = true
+        detailsScroll.showsHorizontalScrollIndicator = false
+        detailsScroll.alwaysBounceHorizontal = false
+        if #available(iOS 11.0, *) { detailsScroll.contentInsetAdjustmentBehavior = .never }
+        view.addSubview(detailsScroll)
+        content.detailsScroll = detailsScroll
+        content.onDetailsChanged = { [weak self] h in self?.detailsScroll.contentSize = CGSize(width: self?.content.detailsWidth ?? 0, height: h) }
         view.addSubview(commentsHost)
         commentsHost.isHidden = true
         commentsHost.clipsToBounds = true
@@ -321,7 +383,21 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         fullscreenMode = fullscreen
         miniFrame = mini
         self.safeTop = safeTop
+        // an iPad held sideways (and not full screen) gets two panes
+        let split = !fullscreen && GridLayout.isRegular(width: expanded.width) && expanded.width > expanded.height && expanded.width >= 900
+        let changed = split != isSplit
+        isSplit = split
+        content.detailsWidth = split ? columnWidth(expanded.width) : 0
+        if changed {
+            detailsScroll.isHidden = !split
+            content.split = split
+        }
         applyProgress(progress)
+    }
+
+    /// Width of the player column: everything, or the left share of it when split.
+    private func columnWidth(_ total: CGFloat) -> CGFloat {
+        return isSplit ? floor(total * WatchViewController.splitRatio) : total
     }
 
     private func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { return a + (b - a) * t }
@@ -335,12 +411,13 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         view.frame = CGRect(x: lerp(expandedFrame.minX, miniFrame.minX, p), y: y, width: W, height: h)
         let b = view.bounds
         let top: CGFloat = landscape ? 0 : safeTop
+        let pw = columnWidth(W)
 
         if p == 0 && landscape {
             playerHost.frame = b
             topFill.frame = .zero
         } else {
-            let ex = CGRect(x: 0, y: top, width: W, height: (W * 9 / 16).rounded())
+            let ex = CGRect(x: 0, y: top, width: pw, height: (pw * 9 / 16).rounded())
             let mn = CGRect(x: 0, y: 0, width: MiniBarView.videoWidth, height: WatchViewController.miniHeight)
             playerHost.frame = CGRect(x: lerp(ex.minX, mn.minX, p), y: lerp(ex.minY, mn.minY, p),
                                       width: lerp(ex.width, mn.width, p), height: lerp(ex.height, mn.height, p))
@@ -353,7 +430,15 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         controls.isFullscreen = (p == 0 && landscape)
 
         let contentTop = playerHost.frame.maxY
-        content.view.frame = CGRect(x: 0, y: contentTop, width: W, height: max(0, b.height - contentTop))
+        if isSplit {
+            // the related list takes the right-hand pane from top to bottom; the details sit under the player
+            let paneTop = lerp(top, b.height, p)
+            content.view.frame = CGRect(x: pw, y: paneTop, width: W - pw, height: max(0, b.height - paneTop))
+            detailsScroll.frame = CGRect(x: 0, y: contentTop, width: pw, height: max(0, b.height - contentTop))
+            detailsScroll.alpha = max(0, 1 - p * 3)
+        } else {
+            content.view.frame = CGRect(x: 0, y: contentTop, width: W, height: max(0, b.height - contentTop))
+        }
         content.view.alpha = max(0, 1 - p * 3)
         commentsHost.frame = content.view.frame
         commentsHost.alpha = content.view.alpha
@@ -432,7 +517,10 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
             if abs(v.y) < abs(v.x) * 1.2 { return false }
             if progress < 0.02 {
                 if fullscreenMode { return false }
-                return pan.location(in: view).y <= playerHost.frame.maxY
+                let at = pan.location(in: view)
+                // split: the list beside the player scrolls, so only a drag over the player's column minimises it
+                if isSplit && at.x > playerHost.frame.maxX { return false }
+                return at.y <= playerHost.frame.maxY
             }
             return true
         }
@@ -543,7 +631,13 @@ final class WatchViewController: UIViewController, UIGestureRecognizerDelegate {
         case "chapters": showChapters()
         case "stats": PlayerManager.shared.showsStats = true
         case "pip": PictureInPicture.shared.start()
-        default: break
+        case "scrubend": controls.debugScrubEnd()
+        default:
+            // "scrub:0.4" = a finger on the bar at 40 %, "fine:0.4" = the same, slid up so that the film strip shows
+            if command.hasPrefix("scrub:") || command.hasPrefix("fine:") {
+                let value = Double(command.split(separator: ":").last ?? "") ?? 0
+                controls.debugScrub(value: CGFloat(value), fine: command.hasPrefix("fine:"))
+            }
         }
     }
 

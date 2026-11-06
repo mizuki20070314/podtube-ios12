@@ -109,6 +109,7 @@ enum DebugRoutes {
         case "minimize": root.minimizeWatchIfNeeded()
         case "landscape": root.setLandscape(true)
         case "portrait": root.setLandscape(false)
+        case "orient": root.debugOrientation(landscape: arg == "landscape")
         case "sheet":
             var v = VideoItem(id: "dQw4w9WgXcQ")
             v.title = "Sample"

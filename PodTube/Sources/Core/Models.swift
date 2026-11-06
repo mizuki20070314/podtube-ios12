@@ -267,6 +267,8 @@ struct PlaybackInfo {
     /// Every audio track of the video (one entry per track; two or more means the viewer can choose).
     var audioTracks: [AudioTrackInfo] = []
     var maxHeight: Int = 0
+    /// The "storyboards" of the video (preview frames for the seek bar), as the raw spec string; see `Storyboard`.
+    var storyboardSpec: String = ""
     var fetchedAt: Date = Date()
 
     init(videoId: String) { self.videoId = videoId }

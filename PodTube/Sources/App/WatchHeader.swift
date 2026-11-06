@@ -113,6 +113,8 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
     private var disliked = false
     private var hasComments = false
     private var previewComment: Comment?
+    /// False where the "Up next" row has moved into a heading of the related list (see `UpNextHeaderView`).
+    var showsUpNext = true { didSet { if oldValue != showsUpNext { setNeedsLayout() } } }
 
     var onChannel: (() -> Void)?
     var onOpenComments: (() -> Void)?
@@ -488,13 +490,17 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
 
     // MARK: Layout
 
-    /// Lays everything out for `width` and returns the total height.
+    /// Lays everything out for `width` and returns the total height. A wide header (iPad) puts the channel row before
+    /// the actions, as the YouTube app does there.
     @discardableResult
     func layout(width w: CGFloat) -> CGFloat {
         var y: CGFloat = 12
         let pad: CGFloat = 12
         let tw = w - pad * 2
-        let th = TextMetrics.height(titleLabel.text ?? "", font: Theme.font(17, .semibold), width: tw, maxLines: expanded ? 0 : 2)
+        let wide = GridLayout.isRegular(width: w)
+        let titleFont = wide ? Theme.font(20, .bold) : Theme.font(17, .semibold)
+        titleLabel.font = titleFont
+        let th = TextMetrics.height(titleLabel.text ?? "", font: titleFont, width: tw, maxLines: expanded ? 0 : 2)
         titleLabel.frame = CGRect(x: pad, y: y, width: tw, height: th)
         y += th + 4
         metaLabel.frame = CGRect(x: pad, y: y, width: tw, height: 16)
@@ -517,7 +523,24 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
             y += 26
         }
 
-        // actions
+        if wide {
+            divider.isHidden = true
+            y = layoutChannelRow(y: y, width: w, wide: true)
+            y += layoutActions(y: y, width: w, saveBeforeDownload: true) + 12
+        } else {
+            y += layoutActions(y: y, width: w, saveBeforeDownload: false) + 14
+            divider.isHidden = false
+            divider.frame = CGRect(x: 0, y: y, width: w, height: 0.5)
+            y += 0.5
+            y = layoutChannelRow(y: y, width: w, wide: false)
+        }
+        layoutComments(y: &y, width: w)
+        return layoutUpNext(y: y, width: w)
+    }
+
+    /// The action pills in a row at `y`; returns the height they take.
+    private func layoutActions(y: CGFloat, width w: CGFloat, saveBeforeDownload: Bool) -> CGFloat {
+        let pad: CGFloat = 12
         let ah: CGFloat = 36
         var x: CGFloat = pad
         let likeTextWidth: CGFloat = ceil(((likeLabel.text ?? "") as NSString).size(withAttributes: [.font: Theme.font(14, .medium)]).width)
@@ -533,36 +556,56 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
         let sw = shareButton.sizeThatFits(.zero)
         shareButton.frame = CGRect(x: x, y: 0, width: sw.width, height: ah)
         x += sw.width + 8
-        let dw = downloadButton.sizeThatFits(.zero)
-        downloadButton.frame = CGRect(x: x, y: 0, width: dw.width, height: ah)
-        x += dw.width + 8
-        let vw = saveButton.sizeThatFits(.zero)
-        saveButton.frame = CGRect(x: x, y: 0, width: vw.width, height: ah)
+        let first = saveBeforeDownload ? saveButton : downloadButton
+        let second = saveBeforeDownload ? downloadButton : saveButton
+        let fw = first.sizeThatFits(.zero)
+        first.frame = CGRect(x: x, y: 0, width: fw.width, height: ah)
+        x += fw.width + 8
+        let vw = second.sizeThatFits(.zero)
+        second.frame = CGRect(x: x, y: 0, width: vw.width, height: ah)
         x += vw.width + pad
         actionScroll.frame = CGRect(x: 0, y: y, width: w, height: ah)
         actionScroll.contentSize = CGSize(width: x, height: ah)
-        y += ah + 14
+        return ah
+    }
 
-        divider.frame = CGRect(x: 0, y: y, width: w, height: 0.5)
-        y += 0.5
-
-        // channel
-        if channelRow.isHidden {
+    /// Icon, name and subscribe button; returns the y below the row. Wide: the subscriber count follows the name on
+    /// the same line.
+    private func layoutChannelRow(y: CGFloat, width w: CGFloat, wide: Bool) -> CGFloat {
+        guard !channelRow.isHidden else {
             channelRow.frame = .zero
+            return y
+        }
+        let pad: CGFloat = 12
+        let rh: CGFloat = wide ? 56 : 68
+        channelRow.frame = CGRect(x: 0, y: y, width: w, height: rh)
+        let bw = subscribeButton.sizeThatFits(.zero).width
+        if wide {
+            avatar.layer.cornerRadius = 18
+            avatar.frame = CGRect(x: pad, y: 10, width: 36, height: 36)
+            subscribeButton.frame = CGRect(x: w - bw - pad, y: 11, width: bw, height: 34)
+            let nx: CGFloat = pad + 36 + 12
+            let room = max(0, subscribeButton.frame.minX - nx - 8)
+            let nameW = min(room, ceil(((channelName.text ?? "") as NSString).size(withAttributes: [.font: Theme.font(15, .medium)]).width))
+            channelName.frame = CGRect(x: nx, y: 0, width: nameW, height: rh)
+            let sx = nx + nameW + 10
+            subsLabel.frame = CGRect(x: sx, y: 0, width: max(0, subscribeButton.frame.minX - sx - 8), height: rh)
         } else {
-            let rh: CGFloat = 68
-            channelRow.frame = CGRect(x: 0, y: y, width: w, height: rh)
+            avatar.layer.cornerRadius = 20
             avatar.frame = CGRect(x: pad, y: 14, width: 40, height: 40)
-            let bw = subscribeButton.sizeThatFits(.zero).width
             subscribeButton.frame = CGRect(x: w - bw - pad, y: 17, width: bw, height: 34)
             let nx: CGFloat = pad + 40 + 12
             let nw = subscribeButton.frame.minX - nx - 8
             channelName.frame = CGRect(x: nx, y: 17, width: nw, height: 18)
             subsLabel.frame = CGRect(x: nx, y: 36, width: nw, height: 16)
-            y += rh
         }
+        return y + rh
+    }
 
-        // comments teaser
+    /// The comments teaser card.
+    private func layoutComments(y: inout CGFloat, width w: CGFloat) {
+        let pad: CGFloat = 12
+        let tw = w - pad * 2
         if hasComments {
             let ch: CGFloat = (previewComment != nil) ? 86 : 44
             commentsCard.isHidden = false
@@ -586,14 +629,70 @@ final class WatchHeaderView: UIView, UITextViewDelegate {
             commentsCard.isHidden = true
             y += 6
         }
-        // "Up next" row with the autoplay switch
+    }
+
+    /// The "Up next" row with the autoplay switch (left out when the related list has a pane, and a heading, of its own).
+    private func layoutUpNext(y: CGFloat, width w: CGFloat) -> CGFloat {
+        let pad: CGFloat = 12
+        upNextLabel.isHidden = !showsUpNext
+        autoplayLabel.isHidden = !showsUpNext
+        autoplaySwitch.isHidden = !showsUpNext
+        guard showsUpNext else { return y + 8 }
         autoplaySwitch.isOn = Settings.autoplay
         upNextLabel.frame = CGRect(x: pad, y: y, width: w - 140, height: 40)
         autoplaySwitch.frame = CGRect(x: w - 51 * 0.8 - pad, y: y + (40 - 31 * 0.8) / 2, width: 51 * 0.8, height: 31 * 0.8)
         let alw: CGFloat = 60
         autoplayLabel.frame = CGRect(x: autoplaySwitch.frame.minX - alw - 4, y: y, width: alw, height: 40)
         autoplayLabel.textAlignment = .right
-        y += 44
-        return y
+        return y + 44
+    }
+}
+
+/// "Up next" with the autoplay switch: the heading of the related list when that list has a pane of its own (iPad, sideways).
+final class UpNextHeaderView: UIView {
+    static let height: CGFloat = 48
+
+    private let label = UILabel()
+    private let autoplayLabel = UILabel()
+    private let autoplaySwitch = UISwitch()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        label.font = Theme.font(16, .bold)
+        label.text = L10n.t("video.nextUp")
+        autoplayLabel.font = Theme.font(12)
+        autoplayLabel.text = L10n.t("video.autoplay")
+        autoplayLabel.textAlignment = .right
+        autoplaySwitch.isOn = Settings.autoplay
+        autoplaySwitch.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+        autoplaySwitch.addTarget(self, action: #selector(changed), for: .valueChanged)
+        addSubviews([label, autoplayLabel, autoplaySwitch])
+        applyTheme()
+        NotificationCenter.default.addObserver(self, selector: #selector(applyTheme), name: .themeChanged, object: nil)
+    }
+
+    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc private func applyTheme() {
+        backgroundColor = Theme.background
+        label.textColor = Theme.text
+        autoplayLabel.textColor = Theme.secondaryText
+        autoplaySwitch.onTintColor = Theme.red
+    }
+
+    @objc private func changed() { Settings.autoplay = autoplaySwitch.isOn }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let w = bounds.width
+        let pad: CGFloat = 12
+        autoplaySwitch.isOn = Settings.autoplay
+        label.frame = CGRect(x: pad, y: 0, width: max(0, w - 140), height: bounds.height)
+        // the switch is scaled down: place it by its centre, not its frame
+        autoplaySwitch.bounds = CGRect(x: 0, y: 0, width: 51, height: 31)
+        autoplaySwitch.center = CGPoint(x: w - pad - 51 * 0.8 / 2, y: bounds.midY)
+        autoplayLabel.frame = CGRect(x: w - pad - 51 * 0.8 - 4 - 60, y: 0, width: 60, height: bounds.height)
     }
 }

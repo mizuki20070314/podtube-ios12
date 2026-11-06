@@ -750,6 +750,7 @@ enum Parse {
             info.audioURL = best.url
         }
         info.maxHeight = max(bestVideoH, bestMuxed)
+        info.storyboardSpec = root["storyboards"]["playerStoryboardSpecRenderer"]["spec"].stringValue
 
         for t in root["captions"]["playerCaptionsTracklistRenderer"]["captionTracks"].array {
             let url = t["baseUrl"].stringValue

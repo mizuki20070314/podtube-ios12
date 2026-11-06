@@ -14,6 +14,13 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     private var loadingMore = false
     private var generation = 0
     private(set) var hasLoadedOnce = false
+    /// What the table shows: a row per item, or (iPad) a row of cards for every `GridLayout.columns` videos.
+    private enum Row {
+        case single(Int)
+        case cards([Int])
+    }
+    private var rows: [Row] = []
+    private var activeLayout = GridLayout.list
 
     // MARK: Subclass hooks
 
@@ -53,6 +60,9 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
 
     func headerView(width: CGFloat) -> UIView? { return nil }
 
+    /// How the videos are laid out at `width`: the phone list, or on an iPad a grid of cards (a subclass may ask for another).
+    func gridLayout(width: CGFloat) -> GridLayout { return GridLayout.standard(width: width) }
+
     // MARK: Lifecycle
 
     override func viewDidLoad() {
@@ -69,6 +79,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         tableView.register(VideoCell.self, forCellReuseIdentifier: VideoCell.reuseId)
         tableView.register(ChannelCell.self, forCellReuseIdentifier: ChannelCell.reuseId)
         tableView.register(PlaylistCell.self, forCellReuseIdentifier: PlaylistCell.reuseId)
+        tableView.register(GridRowCell.self, forCellReuseIdentifier: GridRowCell.reuseId)
         tableView.register(ShortsShelfCell.self, forCellReuseIdentifier: ShortsShelfCell.reuseId)
         tableView.register(LoadingCell.self, forCellReuseIdentifier: LoadingCell.reuseId)
         tableView.register(TextBlockCell.self, forCellReuseIdentifier: TextBlockCell.reuseId)
@@ -111,7 +122,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         let f = listFrame
         if tableView.frame != f {
             tableView.frame = f
-            tableView.reloadData()
+            reloadList()
         }
         stateView.frame = stateFrame
         if let h = tableView.tableHeaderView, h.frame.width != f.width {
@@ -121,7 +132,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
 
     @objc private func themeChanged() {
         view.backgroundColor = Theme.background
-        tableView.reloadData()
+        reloadList()
     }
 
     @objc func storeChanged() {}
@@ -132,9 +143,17 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.avatarRefreshQueued = false
-            for ip in self.tableView.indexPathsForVisibleRows ?? [] where ip.row < self.items.count {
-                if case .video(let v) = self.items[ip.row], let cell = self.tableView.cellForRow(at: ip) as? VideoCell {
-                    cell.setAvatar(ChannelDirectory.shared.filled(v).channelAvatar)
+            for ip in self.tableView.indexPathsForVisibleRows ?? [] where ip.row < self.rows.count {
+                switch self.rows[ip.row] {
+                case .single(let i):
+                    if case .video(let v) = self.items[i], let cell = self.tableView.cellForRow(at: ip) as? VideoCell {
+                        cell.setAvatar(ChannelDirectory.shared.filled(v).channelAvatar)
+                    }
+                case .cards(let idx):
+                    guard let cell = self.tableView.cellForRow(at: ip) as? GridRowCell else { break }
+                    for (k, i) in idx.enumerated() {
+                        if case .video(let v) = self.items[i] { cell.card(at: k)?.setAvatar(ChannelDirectory.shared.filled(v).channelAvatar) }
+                    }
                 }
             }
         }
@@ -177,7 +196,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                     } else {
                         self.stateView.hide()
                     }
-                    self.tableView.reloadData()
+                    self.reloadList()
                 case .failure(let error):
                     if self.items.isEmpty {
                         self.stateIsError = true
@@ -196,7 +215,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         seen = []
         continuation = nil
         loadingMore = false
-        tableView.reloadData()
+        reloadList()
         tableView.setContentOffset(.zero, animated: false)
     }
 
@@ -214,7 +233,42 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
         } else {
             stateView.hide()
         }
+        reloadList()
+    }
+
+    /// Rebuilds the rows (for the table's current width) and reloads the table: after the items or the width changed.
+    func reloadList() {
+        rebuildRows()
         tableView.reloadData()
+    }
+
+    private func rebuildRows() {
+        let g = gridLayout(width: tableView.bounds.width)
+        activeLayout = g
+        var out: [Row] = []
+        if g.card {
+            var run: [Int] = []
+            for (i, it) in items.enumerated() {
+                switch it {
+                case .video, .playlist:
+                    run.append(i)
+                    if run.count == g.columns {
+                        out.append(.cards(run))
+                        run = []
+                    }
+                case .channel, .shorts, .text:
+                    if !run.isEmpty {
+                        out.append(.cards(run))
+                        run = []
+                    }
+                    out.append(.single(i))
+                }
+            }
+            if !run.isEmpty { out.append(.cards(run)) }
+        } else {
+            out = items.indices.map { Row.single($0) }
+        }
+        rows = out
     }
 
     private func append(_ page: FeedPage) {
@@ -251,7 +305,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
             return false
         }
         seen.remove(id)
-        tableView.reloadData()
+        reloadList()
     }
 
     func loadMore() {
@@ -271,7 +325,7 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
                 case .failure:
                     self.continuation = nil
                 }
-                self.tableView.reloadData()
+                self.reloadList()
             }
         }
         if continuationEndpoint == "tv" {
@@ -292,29 +346,75 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     func numberOfSections(in tableView: UITableView) -> Int { return 1 }
 
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return items.count + (continuation != nil ? 1 : 0)
+        return rows.count + (continuation != nil ? 1 : 0)
+    }
+
+    private func cardHeight(_ item: FeedItem, width: CGFloat) -> CGFloat {
+        switch item {
+        case .video(let v): return VideoCardView.height(video: v, width: width, reserveAvatar: showsChannelAvatars)
+        case .playlist(let p): return VideoCardView.height(playlist: p, width: width)
+        case .channel, .shorts, .text: return 0
+        }
     }
 
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         let w = tableView.bounds.width
-        if indexPath.row >= items.count { return 56 }
-        switch items[indexPath.row] {
-        case .video(let v): return VideoCell.height(for: v, width: w, reserveAvatar: showsChannelAvatars)
-        case .channel: return ChannelCell.rowHeight
-        case .playlist: return PlaylistCell.height(width: w)
-        case .shorts: return ShortsShelfCell.height(width: w)
-        case .text(let t): return TextBlockCell.height(t, width: w)
+        if indexPath.row >= rows.count { return 56 }
+        switch rows[indexPath.row] {
+        case .cards(let idx):
+            let cw = activeLayout.cardWidth(w)
+            return idx.map { cardHeight(items[$0], width: cw) }.max() ?? 0
+        case .single(let i):
+            switch items[i] {
+            case .video(let v): return VideoCell.height(for: v, width: w, reserveAvatar: showsChannelAvatars)
+            case .channel: return ChannelCell.rowHeight
+            case .playlist: return PlaylistCell.height(width: w)
+            case .shorts: return ShortsShelfCell.height(width: w)
+            case .text(let t): return TextBlockCell.height(t, width: w)
+            }
         }
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        if indexPath.row >= items.count {
+        if indexPath.row >= rows.count {
             let cell = tableView.dequeueReusableCell(withIdentifier: LoadingCell.reuseId, for: indexPath) as! LoadingCell
             cell.start()
             DispatchQueue.main.async { self.loadMore() }
             return cell
         }
-        switch items[indexPath.row] {
+        switch rows[indexPath.row] {
+        case .cards(let idx):
+            let cell = tableView.dequeueReusableCell(withIdentifier: GridRowCell.reuseId, for: indexPath) as! GridRowCell
+            let cards = cell.prepare(count: idx.count, layout: activeLayout)
+            for (card, i) in zip(cards, idx) { configure(card, with: items[i]) }
+            return cell
+        case .single(let i):
+            return singleCell(for: items[i], at: indexPath)
+        }
+    }
+
+    private func configure(_ card: VideoCardView, with item: FeedItem) {
+        switch item {
+        case .video(let raw):
+            let v = showsChannelAvatars ? ChannelDirectory.shared.filled(raw) : raw
+            if showsChannelAvatars && v.channelAvatar.isEmpty { ChannelDirectory.shared.resolve(v) }
+            card.configure(video: v, reserveAvatar: showsChannelAvatars)
+            card.onTap = { [weak self] in self?.play(v) }
+            card.onMore = { [weak self] in
+                guard let self = self else { return }
+                Router.shared.showVideoMenu(v, extra: self.extraActions(for: v))
+            }
+            card.onAvatar = { [weak self] in self?.openChannel(of: v) }
+        case .playlist(let p):
+            card.configure(playlist: p)
+            card.onTap = { [weak self] in self?.open(playlist: p) }
+        case .channel, .shorts, .text:
+            break
+        }
+    }
+
+    private func singleCell(for item: FeedItem, at indexPath: IndexPath) -> UITableViewCell {
+        switch item {
         case .video(let item):
             let cell = tableView.dequeueReusableCell(withIdentifier: VideoCell.reuseId, for: indexPath) as! VideoCell
             let v = showsChannelAvatars ? ChannelDirectory.shared.filled(item) : item
@@ -351,25 +451,37 @@ class FeedViewController: UIViewController, UITableViewDataSource, UITableViewDe
     }
 
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        if indexPath.row < items.count, case .video(let v) = items[indexPath.row] { didDisplayVideo(v) }
+        guard indexPath.row < rows.count else { return }
+        switch rows[indexPath.row] {
+        case .single(let i):
+            if case .video(let v) = items[i] { didDisplayVideo(v) }
+        case .cards(let idx):
+            for i in idx {
+                if case .video(let v) = items[i] { didDisplayVideo(v) }
+            }
+        }
+    }
+
+    private func open(playlist p: PlaylistItem) {
+        if p.id.hasPrefix("RD") && p.id.count == 13 {
+            // A Mix ("RD" + video id) cannot be browsed; play its seed video and let autoplay follow the related list.
+            var seed = VideoItem(id: String(p.id.dropFirst(2)))
+            seed.title = p.title
+            seed.thumbnail = p.thumbnail
+            Router.shared.play(seed)
+        } else {
+            Router.shared.openPlaylist(id: p.id, title: p.title)
+        }
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: false)
-        if indexPath.row >= items.count { return }
-        switch items[indexPath.row] {
+        // the cards of a grid row take their own taps
+        guard indexPath.row < rows.count, case .single(let i) = rows[indexPath.row] else { return }
+        switch items[i] {
         case .video(let v): play(v)
         case .channel(let c): Router.shared.openChannel(id: c.id, name: c.name)
-        case .playlist(let p):
-            if p.id.hasPrefix("RD") && p.id.count == 13 {
-                // A Mix ("RD" + video id) cannot be browsed; play its seed video and let autoplay follow the related list.
-                var seed = VideoItem(id: String(p.id.dropFirst(2)))
-                seed.title = p.title
-                seed.thumbnail = p.thumbnail
-                Router.shared.play(seed)
-            } else {
-                Router.shared.openPlaylist(id: p.id, title: p.title)
-            }
+        case .playlist(let p): open(playlist: p)
         case .shorts, .text: break
         }
     }

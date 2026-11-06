@@ -51,6 +51,13 @@ final class PlayerManager: NSObject {
     private var lastSaved: TimeInterval = 0
     private var lastItemError: NSError?
     private var wantsPlay = true
+    private var storyboardCache: (id: String, duration: Double, value: Storyboard?)?
+    private(set) var isScrubbing = false
+    private var scrubGeneration = 0
+    private var scrubResume = false
+    private var scrubTarget: TimeInterval?
+    private var scrubFine = false
+    private var scrubBusy = false
     private var sleepTimer: Timer?
     private(set) var sleepEndsAt: Date?
     private(set) var sleepAtEnd = false
@@ -143,6 +150,16 @@ final class PlayerManager: NSObject {
         let end = r.start.seconds + r.duration.seconds
         return end.isFinite ? end : 0
     }
+    /// Preview frames of the current video; nil for live streams, downloads and videos that have none.
+    var storyboard: Storyboard? {
+        guard let i = info, !i.isLive, !i.storyboardSpec.isEmpty else { return nil }
+        let d = duration
+        guard d > 0 else { return nil }
+        if let c = storyboardCache, c.id == i.videoId, c.duration == d { return c.value }
+        let sb = Storyboard(spec: i.storyboardSpec, duration: d)
+        storyboardCache = (i.videoId, d, sb)
+        return sb
+    }
 
     // MARK: Playing
 
@@ -164,6 +181,7 @@ final class PlayerManager: NSObject {
 
         generation += 1
         let gen = generation
+        cancelScrub()
         if self.video?.id != video.id { chapters = [] }
         self.video = video
         info = nil
@@ -197,6 +215,8 @@ final class PlayerManager: NSObject {
                 switch result {
                 case .success(let info):
                     self.info = info
+                    // the small frames are a few KB: have them ready before a finger takes hold of the seek bar
+                    if let sb = self.storyboard { StoryboardImages.shared.prefetch(sb) }
                     self.candidates = self.sources(for: info)
                     self.candidateIndex = 0
                     NotificationCenter.default.post(name: .playerItemChanged, object: nil)
@@ -415,6 +435,7 @@ final class PlayerManager: NSObject {
 
     func pause() {
         wantsPlay = false
+        scrubResume = false
         player.pause()
     }
 
@@ -433,6 +454,81 @@ final class PlayerManager: NSObject {
         var target = currentTime + seconds
         if duration > 0 { target = min(target, duration - 0.5) }
         seek(to: target)
+    }
+
+    // MARK: Scrubbing
+
+    /// A finger took hold of the seek bar: stop the sound (the picture follows the finger from here on) and remember
+    /// whether to go on playing at the end.
+    func beginScrub() {
+        scrubGeneration += 1
+        scrubBusy = false
+        scrubTarget = nil
+        scrubFine = false
+        // a resume still owed by a scrub that was cut short stays owed
+        if !scrubResume { scrubResume = player.timeControlStatus != .paused }
+        isScrubbing = true
+        player.pause()
+    }
+
+    /// Shows the picture at `seconds` while the finger is down. One seek at a time, always to the latest place: coarse
+    /// ones (a key frame nearby will do) while the finger runs along the bar, exact ones while it fine-adjusts.
+    func scrub(to seconds: TimeInterval, fine: Bool) {
+        guard isScrubbing else { return }
+        scrubTarget = max(0, seconds)
+        scrubFine = fine
+        nextScrubSeek()
+    }
+
+    private func nextScrubSeek() {
+        guard isScrubbing, !scrubBusy, let target = scrubTarget else { return }
+        scrubTarget = nil
+        scrubBusy = true
+        let gen = scrubGeneration
+        let tolerance: CMTime = scrubFine ? .zero : .positiveInfinity
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: tolerance, toleranceAfter: tolerance) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self = self, gen == self.scrubGeneration else { return }
+                self.scrubBusy = false
+                self.nextScrubSeek()
+            }
+        }
+    }
+
+    /// The finger lifted: land exactly on `seconds`, then go on as before (playing or not).
+    func endScrub(at seconds: TimeInterval, completion: (() -> Void)? = nil) {
+        guard isScrubbing else {
+            completion?()
+            return
+        }
+        isScrubbing = false
+        scrubGeneration += 1
+        scrubBusy = false
+        scrubTarget = nil
+        let gen = scrubGeneration
+        let t = CMTime(seconds: max(0, seconds), preferredTimescale: 600)
+        player.seek(to: t, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            DispatchQueue.main.async {
+                // a newer scrub has taken over: it settles things at its own end
+                guard let self = self, gen == self.scrubGeneration else { return }
+                // after the end of the video the play button would start over from 0 instead of from here
+                if self.state == .ended { self.state = .paused }
+                if self.scrubResume {
+                    self.scrubResume = false
+                    self.play()
+                }
+                completion?()
+            }
+        }
+    }
+
+    /// Forgets a scrub in progress (the item it was moving is gone).
+    private func cancelScrub() {
+        isScrubbing = false
+        scrubResume = false
+        scrubBusy = false
+        scrubTarget = nil
+        scrubGeneration += 1
     }
 
     var hasNext: Bool { return nextCandidate() != nil }
@@ -486,6 +582,7 @@ final class PlayerManager: NSObject {
     func stop() {
         PlayHistoryReporter.shared.finished(position: currentTime)
         generation += 1
+        cancelScrub()
         tearDownItem()
         player.pause()
         player.replaceCurrentItem(with: nil)

@@ -231,6 +231,25 @@ case "play":
         if let u = p.videoURL { print("video ->", check(u, range: "bytes=0-1023")) }
         if let u = p.audioURL { print("audio ->", check(u, range: "bytes=0-1023")) }
         for c in p.captions.prefix(8) { print("  caption \(c.languageCode) '\(c.name)' auto=\(c.isAuto)") }
+        if let sb = Storyboard(spec: p.storyboardSpec, duration: p.duration) {
+            print("storyboard: \(sb.levels.count) levels")
+            for l in sb.levels {
+                var line = "  L\(l.index) \(l.width)x\(l.height) frames=\(l.count) grid=\(l.columns)x\(l.rows) sheets=\(l.sheetCount) interval=\(sb.spacing(of: l))s"
+                if let u = sb.sheetURL(l, sheet: 0) { line += " -> " + check(u) }
+                print(line)
+            }
+            let l = sb.level(minWidth: 160)
+            let mid = sb.cell(l, at: p.duration / 2)
+            print("  middle of the video is frame \(mid.frame): sheet \(mid.sheet) column \(mid.column) row \(mid.row) of L\(l.index)")
+            if let dir = ProcessInfo.processInfo.environment["PT_SB_SAVE"], let u = sb.sheetURL(l, sheet: mid.sheet),
+               let data = try? Data(contentsOf: u) {
+                let path = dir + "/sb_L\(l.index)_sheet\(mid.sheet).jpg"
+                try? data.write(to: URL(fileURLWithPath: path))
+                print("  saved \(path) (\(data.count) bytes)")
+            }
+        } else {
+            print("storyboard: none (spec \(p.storyboardSpec.count) chars)")
+        }
         if !p.audioTracks.isEmpty {
             print("audio tracks: \(p.audioTracks.count) (formats of the original track: \(p.audioFormats.count))")
             for t in p.audioTracks.prefix(30) { print("  audio \(t.id) lang=\(t.languageTag) '\(t.name)' original=\(t.isDefault)") }
