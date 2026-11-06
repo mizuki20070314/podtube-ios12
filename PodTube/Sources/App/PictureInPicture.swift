@@ -15,6 +15,12 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
 
     static var isSupported: Bool { return AVPictureInPictureController.isPictureInPictureSupported() }
 
+    private static func imageName(of p: UnsafeRawPointer) -> String {
+        var info = Dl_info()
+        guard dladdr(p, &info) != 0, let f = info.dli_fname else { return "?" }
+        return (String(cString: f) as NSString).lastPathComponent
+    }
+
     /// Lines for the connection diagnostics: why the OS says no. Shows whether a tweak loader and ForceInPicture
     /// are inside this process at all, and what MobileGestalt answers for the key ForceInPicture rewrites.
     static func diagnosis() -> [String] {
@@ -37,9 +43,22 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
             typealias MG = @convention(c) (CFString) -> Bool
             let mg = unsafeBitCast(sym, to: MG.self)
             lines.append("MobileGestalt PiP key: " + (mg("nVh/gwNpy7Jv1NOk00CMrw" as CFString) ? "YES" : "NO"))
+            // a function patched by a tweak loader starts with a jump (typically ldr x16 = 58...., br x16 = d61f0200)
+            let code = sym.assumingMemoryBound(to: UInt32.self)
+            lines.append("MGGetBoolAnswer starts: " + (0..<4).map { String(format: "%08x", code[$0]) }.joined(separator: " ")
+                         + " in " + imageName(of: sym))
         } else {
             lines.append("MobileGestalt PiP key: MGGetBoolAnswer not found")
         }
+        for (cls, sel, meta) in [("AVPlayerController", "isPictureInPictureSupported", false),
+                                 ("AVPictureInPictureController", "isPictureInPictureSupported", true)] {
+            guard let c = NSClassFromString(cls) else { lines.append("\(cls): class not loaded"); continue }
+            guard let m = meta ? class_getClassMethod(c, Selector(sel)) : class_getInstanceMethod(c, Selector(sel)) else {
+                lines.append("\(cls) \(sel): no such method"); continue
+            }
+            lines.append("\(cls) \(sel) is implemented in " + imageName(of: unsafeBitCast(method_getImplementation(m), to: UnsafeRawPointer.self)))
+        }
+        lines.append("AVPictureInPictureController(playerLayer:) → " + (AVPictureInPictureController(playerLayer: AVPlayerLayer()) == nil ? "nil" : "created"))
         return lines
     }
 
