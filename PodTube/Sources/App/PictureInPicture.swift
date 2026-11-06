@@ -18,17 +18,28 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     /// the app answers AVKit's "is PiP supported" itself, with the Objective-C runtime; this is only tried when
     /// the OS says no and a ForceInPicture library is inside the process.
     private(set) static var overrideApplied = false
+    /// The classes whose "is PiP supported" answer was replaced. AVKit's controller and Pegasus' proxy (which AVKit
+    /// creates inside the controller and which talks to SpringBoard) both ask, so both are answered.
+    private(set) static var overriddenClasses: [String] = []
+
+    private typealias SupportCheck = @convention(c) (AnyObject, Selector) -> Bool
 
     private static let installOverride: Void = {
         var tweak = false
         for i in 0..<_dyld_image_count() {
             if let p = _dyld_get_image_name(i), String(cString: p).lowercased().contains("forceinpicture") { tweak = true }
         }
-        guard tweak, !AVPictureInPictureController.isPictureInPictureSupported(),
-              let m = class_getClassMethod(AVPictureInPictureController.self, NSSelectorFromString("isPictureInPictureSupported")) else { return }
+        guard tweak else { return }
+        let sel = NSSelectorFromString("isPictureInPictureSupported")
         let yes: @convention(block) (AnyObject) -> Bool = { _ in true }
-        method_setImplementation(m, imp_implementationWithBlock(yes))
-        overrideApplied = true
+        for name in ["AVPictureInPictureController", "PGPictureInPictureProxy"] {
+            guard let cls = NSClassFromString(name), let m = class_getClassMethod(cls, sel) else { continue }
+            let current = unsafeBitCast(method_getImplementation(m), to: SupportCheck.self)
+            if current(cls as AnyObject, sel) { continue }
+            method_setImplementation(m, imp_implementationWithBlock(yes))
+            overriddenClasses.append(name)
+        }
+        overrideApplied = !overriddenClasses.isEmpty
     }()
 
     /// With the override, the button is only offered if AVKit then really hands out a controller.
@@ -52,6 +63,7 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
         _ = installOverride
         lines.append("PodTube's own override of AVKit's PiP check: " + (overrideApplied ? "applied" : "not applied")
                      + (overrideApplied ? (overrideWorks ? " (AVKit then creates the controller)" : " (AVKit still refuses to create the controller)") : ""))
+        if overrideApplied { lines.append("   overridden: " + overriddenClasses.joined(separator: ", ")) }
         var u = utsname()
         _ = uname(&u)
         let model = withUnsafePointer(to: &u.machine) {
@@ -88,7 +100,60 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
         let b = PictureInPicture.shared
         lines.append("controller bound to the player: " + (b.controller == nil ? "no (play a video first)" : "yes, possible = \(b.isPossible)"))
         lines.append("AVPictureInPictureController(playerLayer:) → " + (AVPictureInPictureController(playerLayer: AVPlayerLayer()) == nil ? "nil" : "created"))
+        lines.append(contentsOf: pegasusLines())
         return lines
+    }
+
+    // MARK: Inside AVKit's controller (private classes, read through the runtime; nothing is written)
+
+    private static func ivarObject(_ obj: AnyObject, _ name: String) -> AnyObject? {
+        guard let iv = class_getInstanceVariable(object_getClass(obj), name) else { return nil }
+        return object_getIvar(obj, iv) as AnyObject?
+    }
+
+    private static func ivarBool(_ obj: AnyObject, _ name: String) -> String {
+        guard let iv = class_getInstanceVariable(object_getClass(obj), name) else { return "no ivar" }
+        let base = Unmanaged.passUnretained(obj).toOpaque()
+        return base.advanced(by: ivar_getOffset(iv)).assumingMemoryBound(to: Bool.self).pointee ? "YES" : "NO"
+    }
+
+    private static func kvc(_ obj: AnyObject, getter: String, key: String) -> String {
+        guard let o = obj as? NSObject, o.responds(to: NSSelectorFromString(getter)), let v = o.value(forKey: key) else { return "n/a" }
+        return "\(v)"
+    }
+
+    /// Why AVKit says "not possible": AVKit's controller asks its Pegasus proxy, whose answer comes from SpringBoard.
+    private static func pegasusLines() -> [String] {
+        var out: [String] = []
+        let sel = NSSelectorFromString("isPictureInPictureSupported")
+        for name in ["PGPictureInPictureProxy", "PGPictureInPictureController"] {
+            guard let cls = NSClassFromString(name), let m = class_getClassMethod(cls, sel) else { out.append("\(name): not found"); continue }
+            let imp = method_getImplementation(m)
+            let answer = unsafeBitCast(imp, to: SupportCheck.self)(cls as AnyObject, sel)
+            out.append("\(name) supported: \(answer ? "YES" : "NO") (in \(imageName(of: unsafeBitCast(imp, to: UnsafeRawPointer.self))))")
+        }
+        let bound = PictureInPicture.shared.controller
+        guard let found = bound ?? AVPictureInPictureController(playerLayer: AVPlayerLayer()) else {
+            out.append("no controller to look into"); return out
+        }
+        let ctl: AnyObject = found
+        out.append("looking into " + (bound != nil ? "the player's controller" : "a test controller"))
+        if let proxy = ivarObject(ctl, "_pictureInPictureProxy") {
+            out.append("   proxy possible: " + ivarBool(proxy, "_isPictureInPicturePossible"))
+            out.append("   proxy active: " + ivarBool(proxy, "_isPictureInPictureActive"))
+            out.append("   connection: " + (ivarObject(proxy, "_connection").map { String(describing: $0) } ?? "nil"))
+        } else {
+            out.append("   proxy: nil")
+        }
+        if let pc = ivarObject(ctl, "_playerController") {
+            out.append("   playerController possible: " + kvc(pc, getter: "isPictureInPicturePossible", key: "pictureInPicturePossible")
+                       + ", supported: " + kvc(pc, getter: "isPictureInPictureSupported", key: "pictureInPictureSupported"))
+            out.append("   hasEnabledVideo: " + kvc(pc, getter: "hasEnabledVideo", key: "hasEnabledVideo")
+                       + ", canPlay: " + kvc(pc, getter: "canPlay", key: "canPlay"))
+        } else {
+            out.append("   playerController: nil")
+        }
+        return out
     }
 
     fileprivate var controller: AVPictureInPictureController?
