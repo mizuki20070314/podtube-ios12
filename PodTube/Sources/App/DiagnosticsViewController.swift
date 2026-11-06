@@ -60,6 +60,7 @@ final class DiagnosticsViewController: UIViewController {
         append("--- " + DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))
         // not a step of the chain: whether the OS lets this device use Picture in Picture decides if the player shows its button
         append("-- Picture in Picture: " + (PictureInPicture.isSupported ? "the OS offers it" : "the OS does not offer it on this device"))
+        for line in PictureInPicture.diagnosis() { append("   " + line) }
         InnerTube.shared.refreshVisitor { [weak self] in
             DispatchQueue.main.async { self?.step1() }
         }

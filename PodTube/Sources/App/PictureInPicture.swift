@@ -1,6 +1,7 @@
 import UIKit
 import AVKit
 import AVFoundation
+import MachO
 
 extension Notification.Name {
     static let pipChanged = Notification.Name("PodTubePipChanged")
@@ -13,6 +14,34 @@ final class PictureInPicture: NSObject, AVPictureInPictureControllerDelegate {
     static let shared = PictureInPicture()
 
     static var isSupported: Bool { return AVPictureInPictureController.isPictureInPictureSupported() }
+
+    /// Lines for the connection diagnostics: why the OS says no. Shows whether a tweak loader and ForceInPicture
+    /// are inside this process at all, and what MobileGestalt answers for the key ForceInPicture rewrites.
+    static func diagnosis() -> [String] {
+        var lines: [String] = []
+        var u = utsname()
+        _ = uname(&u)
+        let model = withUnsafePointer(to: &u.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) }
+        }
+        lines.append("device \(model), iOS \(UIDevice.current.systemVersion)")
+        let keys = ["forceinpicture", "pipenabler", "substitute", "substrate", "libhooker", "tweakinject", "ellekit"]
+        var found: [String] = []
+        for i in 0..<_dyld_image_count() {
+            guard let p = _dyld_get_image_name(i) else { continue }
+            let path = String(cString: p)
+            if keys.contains(where: { path.lowercased().contains($0) }) { found.append((path as NSString).lastPathComponent) }
+        }
+        lines.append("tweak libraries in this app: " + (found.isEmpty ? "none (no tweak loader or tweak is injected into PodTube)" : found.joined(separator: ", ")))
+        if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "MGGetBoolAnswer") {
+            typealias MG = @convention(c) (CFString) -> Bool
+            let mg = unsafeBitCast(sym, to: MG.self)
+            lines.append("MobileGestalt PiP key: " + (mg("nVh/gwNpy7Jv1NOk00CMrw" as CFString) ? "YES" : "NO"))
+        } else {
+            lines.append("MobileGestalt PiP key: MGGetBoolAnswer not found")
+        }
+        return lines
+    }
 
     private var controller: AVPictureInPictureController?
     private var possibleObserver: NSKeyValueObservation?
