@@ -443,9 +443,58 @@ case "a-state":
     case .failure(let e): fail(e)
     }
 
+case "history-merge":
+    // Offline check (no network, no account): the plays of this app merged into the account's history. The shelf on
+    // the Library tab has to show the head of the very list the full history screen shows.
+    func clip(_ id: String, short: Bool = false) -> VideoItem {
+        var v = VideoItem(id: id)
+        v.title = id
+        v.isShort = short
+        return v
+    }
+    func names(_ items: [FeedItem]) -> [String] {
+        var out: [String] = []
+        for it in items {
+            switch it {
+            case .video(let v): out.append(v.id)
+            case .shorts(let l): out.append("[shorts x\(l.count)]")
+            default: break
+            }
+        }
+        return out
+    }
+    var passed = true
+    func expect(_ what: String, _ got: [String], _ want: [String]) {
+        if got != want { passed = false }
+        print((got == want ? "ok   " : "FAIL ") + what + ": " + got.joined(separator: " > "))
+        if got != want { print("     want: " + want.joined(separator: " > ")) }
+    }
+    // the account's first page as the TV gives it: two videos, a long run of Shorts, then videos that were also played
+    // in this app (the shelf used to look for them in the first 12 videos only and put them in front)
+    let flat = [clip("gt5"), clip("yukkuri")] + (1...14).map { clip("short\($0)", short: true) }
+        + [clip("waveshare"), clip("sfl"), clip("other1"), clip("other2")]
+    let account = Parse.groupShorts(flat.map { FeedItem.video($0) })
+    let accountNames = names(account)
+    let head = ["gt5", "yukkuri"] + (1...10).map { "short\($0)" }
+    func check(_ what: String, local: [VideoItem], full: [String], shelf: [String]) {
+        expect(what + " / full screen", names(HistoryMerge.merge(local: local, account: account)), full)
+        expect(what + " / shelf      ", HistoryMerge.shelf(local: local, account: account, limit: 12).map { $0.id }, shelf)
+    }
+    check("played here, listed by the account after the Shorts", local: [clip("waveshare"), clip("sfl")],
+          full: accountNames, shelf: head)
+    check("played here, unknown to the account", local: [clip("here"), clip("waveshare")],
+          full: ["here"] + accountNames, shelf: ["here"] + head.dropLast())
+    check("a Short played here, listed in the account's run", local: [clip("short3", short: true)],
+          full: accountNames, shelf: head)
+    check("nothing played here", local: [], full: accountNames, shelf: head)
+    expect("account not readable (offline) / shelf", HistoryMerge.shelf(local: [clip("a"), clip("b")], account: [], limit: 12).map { $0.id }, ["a", "b"])
+    print(passed ? "history-merge: OK" : "history-merge: FAILED")
+    if !passed { exit(1) }
+
 default:
     print("commands: home | search q [channel|playlist|video|date] [more] | suggest q | watch id [playlist] | comments id | channel id [tabIndex] | playlist id | play id | shorts seed")
     print("home-fresh [rounds] [minFresh]: anonymous Home refreshed repeatedly (seen videos go behind new ones)")
+    print("history-merge: offline check of how this app's plays are merged into the account's history (shelf == head of the full screen)")
     print("sign-in: login-test (anonymous: requests a device code and polls once)")
     print("account (PT_TOKEN_FILE): a-whoami | a-home | a-subs | a-channels | a-browse id [more] | a-playlist id [more] | a-chan id | a-state videoId | a-track videoId | a-played videoId [seconds] | a-session videoId seconds [fast] (the last two write history!)")
 }

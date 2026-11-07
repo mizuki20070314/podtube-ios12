@@ -140,7 +140,7 @@ final class AccountListViewController: FeedViewController {
             done(.failure(InnerTubeError.api(401, L10n.t("account.signInRequired"))))
             return
         }
-        // history: what was played in this app goes in front (YouTube's own history never learns about it)
+        // history: what was played in this app and the account does not list goes in front
         let local = kind == .history ? HistoryMerge.recent() : []
         InnerTube.shared.accountBrowse(kind.browseId) { [weak self] r in
             if case .failure(let e) = r, let ie = e as? InnerTubeError, case .authRequired = ie {

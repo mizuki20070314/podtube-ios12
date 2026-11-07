@@ -359,8 +359,9 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
 
     private var rows: [Row] = []
     private let accountHeader = AccountHeaderView()
-    /// Recent history of the signed-in account, shown as the first shelf (kept between visits to avoid flicker).
-    private var accountHistory: [VideoItem] = []
+    /// First page of the signed-in account's history, the list the full history screen starts from; the first shelf
+    /// is made of it (kept between visits to avoid flicker).
+    private var accountHistory: [FeedItem] = []
     private var accountHistoryLoaded = Date.distantPast
 
     private var signedIn: Bool { return Account.shared.isSignedIn }
@@ -433,7 +434,7 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
             guard case .success(let page) = r else { return }
             DispatchQueue.main.async {
                 guard let self = self, self.signedIn else { return }
-                self.accountHistory = Array(page.videos.prefix(12))
+                self.accountHistory = page.items
                 self.table.reloadData()
             }
         }
@@ -537,7 +538,7 @@ final class LibraryViewController: UIViewController, HidesNavigationBar, Scrolls
     // MARK: Table
 
     private var shelfVideos: [VideoItem] {
-        if signedIn { return HistoryMerge.merge(local: HistoryMerge.recent(), account: accountHistory, limit: 12) }
+        if signedIn { return HistoryMerge.shelf(local: HistoryMerge.recent(), account: accountHistory, limit: 12) }
         return Array(Store.shared.history.prefix(12)).map { $0.video }
     }
 
